@@ -581,7 +581,7 @@ kubernetes-bootcamp-57978f5f5d-ppsmk   1/1     Running   0          49m
 C:\Users\echypal>  
 
 
-#scale application 
+#scale up application 
 
 C:\Users\echypal>kubectl get deployment
 NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
@@ -665,6 +665,228 @@ C:\Users\echypal>curl 192.168.43.210:30352
 Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-57978f5f5d-hc9mk | v=1
 
 We hit a different Pod with every request. This demonstrates that the load-balancing is working.
+
+#scale down application
+
+C:\Users\echypal>kubectl scale deployment kubernetes-bootcamp --replicas=2
+deployment.apps/kubernetes-bootcamp scaled
+
+C:\Users\echypal>kubectl get deployment
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   2/2     2            2           97m
+mongo-express         1/1     1            1           5d5h
+mongodb-deployment    2/4     4            2           5d5h
+
+C:\Users\echypal>
+
+C:\Users\echypal>kubectl get pod -o wide
+NAME                                   READY   STATUS    RESTARTS   AGE    IP            NODE       NOMINATED NODE   READINESS GATES
+kubernetes-bootcamp-57978f5f5d-hc9mk   1/1     Running   0          14m    172.17.0.12   minikube   <none>           <none>
+kubernetes-bootcamp-57978f5f5d-ppsmk   1/1     Running   0          102m   172.17.0.8    minikube   <none>           <none>
+mongo-express-78fcf796b8-pfrdc         1/1     Running   2          5d5h   172.17.0.5    minikube   <none>           <none>
+mongodb-deployment-8f6675bc5-9rfwg     1/1     Running   4          38m    172.17.0.11   minikube   <none>           <none>
+mongodb-deployment-8f6675bc5-bqckw     0/1     Error     10         5d5h   172.17.0.3    minikube   <none>           <none>
+mongodb-deployment-8f6675bc5-lzgtj     0/1     Error     12         38m    172.17.0.10   minikube   <none>           <none>
+mongodb-deployment-8f6675bc5-sk6q5     1/1     Running   11         38m    172.17.0.9    minikube   <none>           <none>
+
+C:\Users\echypal>
+
+#rolling update
+note:  By default, the maximum number of Pods that can be unavailable during the update and the maximum number of new Pods that can be created, is one.Both options can be configured to either numbers or percentages (of Pods)
+
+C:\Users\echypal>kubectl get deployments
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   2/2     2            2           15h
+mongo-express         1/1     1            1           5d19h
+mongodb-deployment    1/1     1            1           5d19h
+
+C:\Users\echypal>kubectl get pods
+NAME                                   READY   STATUS    RESTARTS   AGE
+kubernetes-bootcamp-57978f5f5d-hc9mk   1/1     Running   0          13h
+kubernetes-bootcamp-57978f5f5d-ppsmk   1/1     Running   0          15h
+mongo-express-78fcf796b8-pfrdc         1/1     Running   2          5d19h
+mongodb-deployment-8f6675bc5-9rfwg     1/1     Running   4          14h
+
+To update the image of the application to version 2, use the set image command, followed by the deployment name and the new image version:
+
+C:\Users\echypal>kubectl set image deployments/kubernetes-bootcamp kubernetes-bootcamp=jocatalin/kubernetes-bootcamp:v2
+deployment.apps/kubernetes-bootcamp image updated
+
+C:\Users\echypal>kubectl get pod
+NAME                                   READY   STATUS              RESTARTS   AGE
+kubernetes-bootcamp-57978f5f5d-hc9mk   1/1     Running             0          13h
+kubernetes-bootcamp-57978f5f5d-ppsmk   1/1     Running             0          15h
+kubernetes-bootcamp-769746fd4-5rd8m    0/1     ContainerCreating   0          6s
+mongo-express-78fcf796b8-pfrdc         1/1     Running             2          5d19h
+mongodb-deployment-8f6675bc5-9rfwg     1/1     Running             4          14h
+
+C:\Users\echypal>kubectl get pod
+NAME                                   READY   STATUS        RESTARTS   AGE
+kubernetes-bootcamp-57978f5f5d-hc9mk   1/1     Terminating   0          13h
+kubernetes-bootcamp-57978f5f5d-ppsmk   1/1     Terminating   0          15h
+kubernetes-bootcamp-769746fd4-4vx8r    1/1     Running       0          4s
+kubernetes-bootcamp-769746fd4-5rd8m    1/1     Running       0          15s
+mongo-express-78fcf796b8-pfrdc         1/1     Running       2          5d19h
+mongodb-deployment-8f6675bc5-9rfwg     1/1     Running       4          14h
+
+C:\Users\echypal>kubectl get pod
+NAME                                   READY   STATUS        RESTARTS   AGE
+kubernetes-bootcamp-57978f5f5d-hc9mk   1/1     Terminating   0          13h
+kubernetes-bootcamp-57978f5f5d-ppsmk   1/1     Terminating   0          15h
+kubernetes-bootcamp-769746fd4-4vx8r    1/1     Running       0          25s
+kubernetes-bootcamp-769746fd4-5rd8m    1/1     Running       0          36s
+mongo-express-78fcf796b8-pfrdc         1/1     Running       2          5d19h
+mongodb-deployment-8f6675bc5-9rfwg     1/1     Running       4          14h
+
+C:\Users\echypal>kubectl get pod
+NAME                                  READY   STATUS    RESTARTS   AGE
+kubernetes-bootcamp-769746fd4-4vx8r   1/1     Running   0          47s
+kubernetes-bootcamp-769746fd4-5rd8m   1/1     Running   0          58s
+mongo-express-78fcf796b8-pfrdc        1/1     Running   2          5d19h
+mongodb-deployment-8f6675bc5-9rfwg    1/1     Running   4          14h
+
+check image version is updated
+
+C:\Users\echypal>kubectl describe pod kubernetes-bootcamp-769746fd4-4vx8r
+Name:         kubernetes-bootcamp-769746fd4-4vx8r
+Namespace:    default
+Priority:     0
+Node:         minikube/192.168.43.210
+Start Time:   Sun, 11 Jul 2021 12:28:33 +0530
+Labels:       app=kubernetes-bootcamp
+              pod-template-hash=769746fd4
+Annotations:  <none>
+Status:       Running
+IP:           172.17.0.9
+IPs:
+  IP:           172.17.0.9
+Controlled By:  ReplicaSet/kubernetes-bootcamp-769746fd4
+Containers:
+  kubernetes-bootcamp:
+    Container ID:   docker://500d7842d67ce09ee9be960470ba87ddd6dceed2cac0e35ef4354fa91f036c77
+    Image:          jocatalin/kubernetes-bootcamp:v2
+    Image ID:       docker-pullable://jocatalin/kubernetes-bootcamp@sha256:fb1a3ced00cecfc1f83f18ab5cd14199e30adc1b49aa4244f5d65ad3f5feb2a5
+    Port:           <none>
+    Host Port:      <none>
+	
+.....................	
+#check rolling update is ok
+
+C:\Users\echypal>minikube ip
+192.168.43.210
+
+C:\Users\echypal>curl 192.168.43.210:30352
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-769746fd4-4vx8r | v=2
+
+C:\Users\echypal>curl 192.168.43.210:30352
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-769746fd4-5rd8m | v=2
+
+C:\Users\echypal>curl 192.168.43.210:30352
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-769746fd4-4vx8r | v=2
+
+C:\Users\echypal>
+
+Every time you run the curl command, you will hit a different Pod. Notice that all Pods are running the latest version (v2).
+
+C:\Users\echypal>kubectl rollout status deployment kubernetes-bootcamp
+deployment "kubernetes-bootcamp" successfully rolled out
+
+C:\Users\echypal>
+
+#rollback an update
+1) try to perform an update with wrong image version
+C:\Users\echypal>kubectl set image deployment kubernetes-bootcamp kubernetes-bootcamp=gcr.io/google-samples/kubernetes-bootcamp:v10
+deployment.apps/kubernetes-bootcamp image updated
+
+C:\Users\echypal>
+2) Check that update is not proper
+
+C:\Users\echypal>kubectl get pod
+NAME                                  READY   STATUS             RESTARTS   AGE
+kubernetes-bootcamp-597654dbd-kdwth   0/1     ImagePullBackOff   0          19s
+kubernetes-bootcamp-769746fd4-4vx8r   1/1     Running            0          11m
+kubernetes-bootcamp-769746fd4-5rd8m   1/1     Running            0          11m
+mongo-express-78fcf796b8-pfrdc        1/1     Running            2          5d19h
+mongodb-deployment-8f6675bc5-9rfwg    1/1     Running            4          14h
+
+C:\Users\echypal>kubectl get pod
+NAME                                  READY   STATUS         RESTARTS   AGE
+kubernetes-bootcamp-597654dbd-kdwth   0/1     ErrImagePull   0          117s
+kubernetes-bootcamp-769746fd4-4vx8r   1/1     Running        0          12m
+kubernetes-bootcamp-769746fd4-5rd8m   1/1     Running        0          13m
+mongo-express-78fcf796b8-pfrdc        1/1     Running        2          5d19h
+mongodb-deployment-8f6675bc5-9rfwg    1/1     Running        4          14h
+
+C:\Users\echypal>
+
+C:\Users\echypal>kubectl get deployment
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   2/2     1            2           15h
+mongo-express         1/1     1            1           5d19h
+mongodb-deployment    1/1     1            1           5d19h
+
+C:\Users\echypal>kubectl rollout status deployment kubernetes-bootcamp
+Waiting for deployment "kubernetes-bootcamp" rollout to finish: 1 out of 2 new replicas have been updated...
+
+
+kubernetes tries to update one pod. it failed so it didn't tried the second one. 
+Now you could understand the meaning of (By default, the maximum number of Pods that can be unavailable during the update and the maximum number of new Pods that can be created, is one)
+
+3) check the reason for the fail is wrong image version
+
+C:\Users\echypal>kubectl describe pod kubernetes-bootcamp-597654dbd-kdwth
+Name:         kubernetes-bootcamp-597654dbd-kdwth
+.......
+Containers:
+  kubernetes-bootcamp:
+    Container ID:
+    Image:          gcr.io/google-samples/kubernetes-bootcamp:v10
+    .......
+Events:
+  Type     Reason     Age                   From               Message
+  ----     ------     ----                  ----               -------
+  Normal   Scheduled  4m7s                  default-scheduler  Successfully assigned default/kubernetes-bootcamp-597654dbd-kdwth to minikube
+  Normal   Pulling    2m34s (x4 over 4m6s)  kubelet            Pulling image "gcr.io/google-samples/kubernetes-bootcamp:v10"
+  Warning  Failed     2m31s (x4 over 4m2s)  kubelet            Failed to pull image "gcr.io/google-samples/kubernetes-bootcamp:v10": rpc error: code = Unknown desc = Error response from daemon: manifest for gcr.io/google-samples/kubernetes-bootcamp:v10 not found: manifest unknown: Failed to fetch "v10" from request "/v2/google-samples/kubernetes-bootcamp/manifests/v10".
+  Warning  Failed     2m31s (x4 over 4m2s)  kubelet            Error: ErrImagePull
+  Warning  Failed     2m2s (x6 over 4m2s)   kubelet            Error: ImagePullBackOff
+  Normal   BackOff    108s (x7 over 4m2s)   kubelet            Back-off pulling image "gcr.io/google-samples/kubernetes-bootcamp:v10"
+  
+4)  Check that all request are now served by another pod(with version 2)
+
+C:\Users\echypal>curl 192.168.43.210:30352
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-769746fd4-5rd8m | v=2
+
+C:\Users\echypal>curl 192.168.43.210:30352
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-769746fd4-5rd8m | v=2
+
+C:\Users\echypal>curl 192.168.43.210:30352
+Hello Kubernetes bootcamp! | Running on: kubernetes-bootcamp-769746fd4-5rd8m | v=2
+
+5) rollback the deployment to last working version
+
+C:\Users\echypal>kubectl rollout undo deployment kubernetes-bootcamp
+deployment.apps/kubernetes-bootcamp rolled back
+
+C:\Users\echypal>kubectl get deployment
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+kubernetes-bootcamp   2/2     2            2           15h
+mongo-express         1/1     1            1           5d19h
+mongodb-deployment    1/1     1            1           5d19h
+
+C:\Users\echypal>kubectl get pod
+NAME                                  READY   STATUS    RESTARTS   AGE
+kubernetes-bootcamp-769746fd4-4vx8r   1/1     Running   0          25m
+kubernetes-bootcamp-769746fd4-5rd8m   1/1     Running   0          25m
+mongo-express-78fcf796b8-pfrdc        1/1     Running   2          5d19h
+mongodb-deployment-8f6675bc5-9rfwg    1/1     Running   4          14h
+
+C:\Users\echypal>
+
+C:\Users\echypal>kubectl rollout status deployment kubernetes-bootcamp
+deployment "kubernetes-bootcamp" successfully rolled out
+
+The deployment is once again using a stable version of the app (v2). The rollback was successful.
 
 
 #create complete web application browser->Mongo express external service -> Mongo express pod -> mongo db internal service->mongo db pod
