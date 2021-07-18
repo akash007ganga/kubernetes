@@ -1099,3 +1099,304 @@ ingress.networking.k8s.io/dashboard-ingress created
 C:\Users\echypal>kubectl get ingress -n kubernetes-dashboard
 NAME                CLASS    HOSTS           ADDRESS        PORTS   AGE
 dashboard-ingress   <none>   dashboard.com   192.168.49.2   80      98s
+
+
+####Create a config-map with empty data. create a volume with the data of the config map. expose the data of the volume to some file. Mount the volume to some 
+####location. Use the location to read data and use it to create pod
+
+1) config-map with empty data
+>>example-redis-config.yaml"
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-redis-config
+data:
+  redis-config: ""
+
+note: redis-config is the key of the data which is currently empty
+
+C:\Users\echypal>kubectl apply -f "C:\repository\git\kubernetes\redis-cache\example-redis-config.yaml"
+configmap/example-redis-config created
+
+2) Here a volume with name config is created from data of key redis-config(key present in example-redis-config.yaml file) and exposed data to file redis.conf
+
+......
+volumes:
+    - name: data
+      emptyDir: {}
+    - name: config
+      configMap:
+        name: example-redis-config
+        items:
+        - key: redis-config
+          path: redis.conf
+.....	
+
+volumeMounts:
+    - mountPath: /redis-master-data
+      name: data
+    - mountPath: /redis-master
+      name: config
+
+.......
+Note: Then volume config is mounted to redis-master
+..................
+containers:
+  - name: redis
+    image: redis:5.0.4
+    command:
+      - redis-server
+      - "/redis-master/redis.conf"
+	  
+..................
+note: 	data is used to create pod
+
+C:\Users\echypal>kubectl apply -f "C:\repository\git\kubernetes\redis-cache\redis-pod.yaml"
+pod/redis created
+
+3) kubectl get pod/redis configmap/example-redis-config 
+NAME        READY   STATUS    RESTARTS   AGE
+pod/redis   1/1     Running   0          8s
+
+NAME                             DATA   AGE
+configmap/example-redis-config   1      14s
+
+4) kubectl describe configmap/example-redis-config
+
+Name:         example-redis-config
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+redis-config:
+
+Note: data is blank under key redis-config
+
+5) check maxmemory and maxmemory-policy of redis
+
+C:\Users\echypal>kubectl exec -ti redis sh
+kubectl exec [POD] [COMMAND] is DEPRECATED and will be removed in a future version. Use kubectl exec [POD] -- [COMMAND] instead.
+# redis-cli
+127.0.0.1:6379> CONFIG GET maxmemory
+1) "maxmemory"
+2) "0"
+127.0.0.1:6379> CONFIG GET maxmemory-policy
+1) "maxmemory-policy"
+2) "noeviction"
+127.0.0.1:6379> exit
+# exit
+
+6) Now add some data values to the key, redis-config of example-redis-config ConfigMap:
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-redis-config
+data:
+  redis-config: |
+    maxmemory 2mb
+    maxmemory-policy allkeys-lru
+
+7) Apply the change
+C:\Users\echypal>kubectl apply -f "C:\repository\git\kubernetes\redis-cache\example-redis-config.yaml"
+configmap/example-redis-config configured
+
+8) check data
+C:\Users\echypal>kubectl describe configmap/example-redis-config
+Name:         example-redis-config
+Namespace:    default
+Labels:       <none>
+Annotations:  <none>
+
+Data
+====
+redis-config:
+----
+maxmemory 2mb
+maxmemory-policy allkeys-lru
+
+Events:  <none>
+
+9) Check redis memory again
+C:\Users\echypal>kubectl exec -it redis -- sh
+# redis-cli
+127.0.0.1:6379> CONFIG GET maxmemory
+1) "maxmemory"
+2) "0"
+127.0.0.1:6379> CONFIG GET maxmemory-policy
+1) "maxmemory-policy"
+2) "noeviction"
+127.0.0.1:6379>
+
+Note: data not updated in pod.
+
+10) Delete and recreate pod
+
+C:\Users\echypal>kubectl delete pod redis
+pod "redis" deleted
+
+C:\Users\echypal>kubectl apply -f "C:\repository\git\kubernetes\redis-cache\redis-pod.yaml"
+pod/redis created
+
+11) Again check values in redis
+
+C:\Users\echypal>kubectl exec -ti redis -- sh
+# redis-cli
+127.0.0.1:6379> CONFIG GET maxmemory
+1) "maxmemory"
+2) "2097152"
+127.0.0.1:6379> CONFIG GET maxmemory-policy
+1) "maxmemory-policy"
+2) "allkeys-lru"
+127.0.0.1:6379>
+
+12) Inspect the volume
+
+C:\Users\echypal>kubectl exec -it redis -- sh
+# ls
+bin   data  etc   lib    media  opt   redis-master       root  sbin  sys  usr
+boot  dev   home  lib64  mnt    proc  redis-master-data  run   srv   tmp  var
+
+# cd redis-master-data
+# ls
+#
+
+# cd redis-master
+# ls
+redis.conf
+# cat redis.conf
+maxmemory 2mb
+maxmemory-policy allkeys-lru
+#
+
+####expose an external ip addresss using load balancer
+1) deleted every other pods for space problem
+
+2) configured deployment with 1 replica(to prevent downloading the image 5 times)
+.....
+spec:
+  replicas: 1
+  selector:
+.....
+C:\Users\echypal>kubectl apply -f C:\repository\git\kubernetes\stateless-application\load-balancer-example.yaml
+deployment.apps/hello-world created
+
+C:\Users\echypal>kubectl get pod
+NAME                           READY   STATUS    RESTARTS   AGE
+hello-world-6df5659cb7-nk7nc   1/1     Running   0          3m3s
+
+3) Change replica to 5
+.....  
+spec:
+  replicas: 5
+  selector:
+.....  
+
+C:\Users\echypal>kubectl apply -f C:\repository\git\kubernetes\stateless-application\load-balancer-example.yaml
+deployment.apps/hello-world configured
+
+C:\Users\echypal>kubectl get pod
+NAME                           READY   STATUS              RESTARTS   AGE
+hello-world-6df5659cb7-7ckvx   0/1     ContainerCreating   0          3s
+hello-world-6df5659cb7-gf4bw   0/1     ContainerCreating   0          3s
+hello-world-6df5659cb7-km7s6   1/1     Running             0          3s
+hello-world-6df5659cb7-l9zwj   0/1     ContainerCreating   0          3s
+hello-world-6df5659cb7-nk7nc   1/1     Running             0          3m23s
+
+
+C:\Users\echypal>kubectl get deployments hello-world
+NAME          READY   UP-TO-DATE   AVAILABLE   AGE
+hello-world   5/5     5            5           4m9s
+
+C:\Users\echypal>kubectl describe deployment hello-world
+Name:                   hello-world
+Namespace:              default
+CreationTimestamp:      Sun, 18 Jul 2021 13:21:56 +0530
+Labels:                 app.kubernetes.io/name=load-balancer-example
+Annotations:            deployment.kubernetes.io/revision: 1
+Selector:               app.kubernetes.io/name=load-balancer-example
+Replicas:               5 desired | 5 updated | 5 total | 5 available | 0 unavailable
+StrategyType:           RollingUpdate
+MinReadySeconds:        0
+RollingUpdateStrategy:  25% max unavailable, 25% max surge
+Pod Template:
+  Labels:  app.kubernetes.io/name=load-balancer-example
+  Containers:
+   hello-world:
+    Image:        gcr.io/google-samples/node-hello:1.0
+    Port:         8080/TCP
+    Host Port:    0/TCP
+    Environment:  <none>
+    Mounts:       <none>
+  Volumes:        <none>
+Conditions:
+  Type           Status  Reason
+  ----           ------  ------
+  Progressing    True    NewReplicaSetAvailable
+  Available      True    MinimumReplicasAvailable
+OldReplicaSets:  <none>
+NewReplicaSet:   hello-world-6df5659cb7 (5/5 replicas created)
+Events:
+  Type    Reason             Age    From                   Message
+  ----    ------             ----   ----                   -------
+  Normal  ScalingReplicaSet  4m29s  deployment-controller  Scaled up replica set hello-world-6df5659cb7 to 1
+  Normal  ScalingReplicaSet  69s    deployment-controller  Scaled up replica set hello-world-6df5659cb7 to 5
+
+C:\Users\echypal>kubectl get replicasets
+NAME                     DESIRED   CURRENT   READY   AGE
+hello-world-6df5659cb7   5         5         5       6m47s
+
+4) C:\Users\echypal>kubectl expose deployment hello-world --type=LoadBalancer --name=my-service
+service/my-service exposed
+
+C:\Users\echypal>kubectl get service
+NAME         TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+kubernetes   ClusterIP      10.96.0.1       <none>        443/TCP          13d
+my-service   LoadBalancer   10.108.244.78   <pending>     8080:32094/TCP   2m2s
+
+C:\Users\echypal>
+
+C:\Users\echypal>kubectl describe service my-service
+Name:                     my-service
+Namespace:                default
+Labels:                   app.kubernetes.io/name=load-balancer-example
+Annotations:              <none>
+Selector:                 app.kubernetes.io/name=load-balancer-example
+Type:                     LoadBalancer
+IP:                       10.108.244.78
+Port:                     <unset>  8080/TCP
+TargetPort:               8080/TCP
+NodePort:                 <unset>  32094/TCP
+Endpoints:                172.17.0.10:8080,172.17.0.2:8080,172.17.0.4:8080 + 2 more...
+Session Affinity:         None
+External Traffic Policy:  Cluster
+Events:                   <none>
+
+C:\Users\echypal>
+
+C:\Users\echypal>kubectl get pod -o wide
+NAME                           READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+hello-world-6df5659cb7-7ckvx   1/1     Running   0          71m   172.17.0.6    minikube   <none>           <none>
+hello-world-6df5659cb7-gf4bw   1/1     Running   0          71m   172.17.0.10   minikube   <none>           <none>
+hello-world-6df5659cb7-km7s6   1/1     Running   0          71m   172.17.0.4    minikube   <none>           <none>
+hello-world-6df5659cb7-l9zwj   1/1     Running   0          71m   172.17.0.7    minikube   <none>           <none>
+hello-world-6df5659cb7-nk7nc   1/1     Running   0          74m   172.17.0.2    minikube   <none>           <none>
+
+C:\Users\echypal>
+
+C:\Users\echypal>minikube service my-service
+|-----------|------------|-------------|-----------------------------|
+| NAMESPACE |    NAME    | TARGET PORT |             URL             |
+|-----------|------------|-------------|-----------------------------|
+| default   | my-service |        8080 | http://192.168.43.210:32094 |
+|-----------|------------|-------------|-----------------------------|
+* Opening service default/my-service in default browser...
+
+C:\Users\echypal>
+
+
+The response to a successful request is a hello message:
+
+Hello Kubernetes!
