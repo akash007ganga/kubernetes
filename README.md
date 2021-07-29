@@ -100,6 +100,14 @@ kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP   7m17s
 C:\Users\echypal>kubectl create deployment nginx-depl --image=nginx
 deployment.apps/nginx-depl created
 
+#incase pod creation is required
+C:\Users\echypal>kubectl run pod nginx --image=nginx
+pod/pod created
+
+C:\Users\echypal>kubectl run redis --image=redis123 --dry-run=client -o yaml > pod.yaml
+C:\Users\echypal>notepad pod.yaml
+
+
 #check deployment
 
 C:\Users\echypal>kubectl get deployment
@@ -165,6 +173,9 @@ C:\Users\echypal>
 
 C:\Users\echypal>kubectl edit deployment nginx-depl
 deployment.apps/nginx-depl edited
+
+If you are not given a pod definition file, you may extract the definition to a file using the below command:
+C:\Users\echypal>kubectl get pod <pod-name> -o yaml > pod-definition.yaml
 
 C:\Users\echypal>kubectl get pod
 NAME                          READY   STATUS              RESTARTS   AGE
@@ -1024,6 +1035,9 @@ C:\Users\echypal>kubectl create namespace my-namespace
 namespace/my-namespace created
 
 C:\Users\echypal>kubectl get namespace
+or
+C:\Users\echypal>kubectl get ns
+
 NAME                   STATUS   AGE
 default                Active   4d3h
 kube-node-lease        Active   4d3h
@@ -1400,3 +1414,275 @@ C:\Users\echypal>
 The response to a successful request is a hello message:
 
 Hello Kubernetes!
+
+#scale up stateful set
+
+1) C:\Users\echypal>kubectl get pod -w -l app=nginx
+NAME    READY   STATUS    RESTARTS   AGE
+web-0   1/1     Running   0          2m49s
+web-1   1/1     Running   0          2m47s
+
+2) 
+C:\Users\echypal>kubectl scale sts web --replicas=5
+statefulset.apps/web scaled
+
+3) C:\Users\echypal>kubectl get pod -w -l app=nginx
+NAME    READY   STATUS    RESTARTS   AGE
+web-0   1/1     Running   0          2m49s
+web-1   1/1     Running   0          2m47s
+web-2   0/1     Pending   0          0s
+web-2   0/1     Pending   0          0s
+web-2   0/1     Pending   0          2s
+web-2   0/1     ContainerCreating   0          2s
+web-2   1/1     Running             0          4s
+web-3   0/1     Pending             0          0s
+web-3   0/1     Pending             0          0s
+web-3   0/1     Pending             0          2s
+web-3   0/1     ContainerCreating   0          2s
+web-3   1/1     Running             0          4s
+web-4   0/1     Pending             0          0s
+web-4   0/1     Pending             0          0s
+web-4   0/1     Pending             0          2s
+web-4   0/1     ContainerCreating   0          2s
+web-4   1/1     Running             0          4s
+
+#scale down stateful set
+1) C:\Users\echypal>kubectl get pod -w -l app=nginx
+NAME    READY   STATUS    RESTARTS   AGE
+web-0   1/1     Running   0          6m14s
+web-1   1/1     Running   0          6m12s
+web-2   1/1     Running   0          2m19s
+web-3   1/1     Running   0          2m15s
+web-4   1/1     Running   0          2m11s
+
+2) C:\Users\echypal>kubectl scale sts web --replicas=2
+statefulset.apps/web scaled
+
+C:\Users\echypal>
+
+3) C:\Users\echypal>kubectl get pod -w -l app=nginx
+NAME    READY   STATUS    RESTARTS   AGE
+web-0   1/1     Running   0          6m14s
+web-1   1/1     Running   0          6m12s
+web-2   1/1     Running   0          2m19s
+web-3   1/1     Running   0          2m15s
+web-4   1/1     Running   0          2m11s
+web-4   1/1     Terminating   0          2m19s
+web-4   0/1     Terminating   0          2m20s
+web-4   0/1     Terminating   0          2m21s
+web-4   0/1     Terminating   0          2m21s
+web-3   1/1     Terminating   0          2m25s
+web-3   0/1     Terminating   0          2m26s
+web-3   0/1     Terminating   0          2m27s
+web-3   0/1     Terminating   0          2m27s
+web-2   1/1     Terminating   0          2m31s
+web-2   0/1     Terminating   0          2m32s
+web-2   0/1     Terminating   0          2m33s
+web-2   0/1     Terminating   0          2m33s
+
+4) persistent volumes of the stateful sets are not deleted
+C:\Users\echypal>kubectl get pvc -l app=nginx
+NAME        STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+www-web-0   Bound    pvc-b3e6f2a2-5e10-4ca8-be96-2c45f54daa92   1Gi        RWO            standard       37m
+www-web-1   Bound    pvc-d1a241b6-c126-42b6-be29-5ae9a7a37cbd   1Gi        RWO            standard       37m
+www-web-2   Bound    pvc-e956c470-8c0f-42aa-9095-db7e5897ee0d   1Gi        RWO            standard       5m30s
+www-web-3   Bound    pvc-80c5f242-519e-49dd-82dc-b1da4f4c6cc5   1Gi        RWO            standard       5m26s
+www-web-4   Bound    pvc-aad929aa-b584-4921-a1b1-effd9f610d0c   1Gi        RWO            standard       5m22s
+
+C:\Users\echypal>
+
+
+
+
+
+
+#find pod in all namespacess
+root@controlplane:~# kubectl get pods --all-namespaces
+
+#create pod (command line)
+Notes:
+# when we create a resource like pod/deployment, we have to use small letters ass first character. Capital Deployment/Pod won't work
+ - C:\Users\echypal>kubectl create deployment nginx-depl --image=nginx
+   deployment.apps/nginx-depl created
+   
+ - C:\Users\echypal>kubectl run nginx --image=nginx
+   pod/nginx created
+   
+ when we write yaml file, kind should start with Capital. Small won't work
+
+ .........
+ kind: Pod
+ 
+ #####
+ ......
+ kind: Deployment
+ 
+# What DNS name should the Blue application use to access the database 'db-service' in its own (marketting) namespace
+db-service
+
+# What DNS name should the Blue application use to access the database 'db-service' in the 'dev' namespace 
+db-service.dev.svc.cluster.local  
+
+# count all the namespaces
+
+root@controlplane:~# kubectl get ns --no-headers | wc -l
+10
+root@controlplane:~# 
+
+# Generate POD Manifest YAML file (-o yaml) for redis Pod. Don't create it(--dry-run)
+
+root@controlplane:~# kubectl run redis --image=redis --dry-run=client -o yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: redis
+  name: redis
+spec:
+  containers:
+  - image: redis
+    name: redis
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}
+root@controlplane:~# 
+
+root@controlplane:~# kubectl run redis --image=redis --dry-run=client -o yaml > pod.yaml
+root@controlplane:~# 
+
+--dry-run: By default as soon as the command is run, the resource will be created. If you simply want to test your command, use the --dry-run=client option. This will not create the resource, instead, tell you whether the resource can be created and if your command is right.
+
+-o yaml: This will output the resource definition in YAML format on the screen.
+
+# Generate Deployment YAML file (-o yaml) for nginx. Don't create it(--dry-run)
+
+kubectl create deployment nginx --image=nginx  --dry-run=client -o yaml
+kubectl create deployment nginx --image=nginx  --dry-run=client -o yaml > nginx-deployment.yaml
+
+# Create a Service named redis-service of type ClusterIP to expose pod redis on port 6379
+kubectl expose pod redis --port=6379 --target-port=6379 --name redis-service --dry-run=client -o yaml
+(This will automatically use the pod's labels as selectors)
+
+
+or
+kubectl create service clusterip redis --tcp=6379:6379 --dry-run=client -o yaml
+(This will not use the pods labels as selectors, instead it will assume selectors as app=redis. You cannot pass in selectors as an option. So it does not work very well if your pod has a different label set. So generate the file and modify the selectors before creating the service)
+
+note: = and space can be used interchangeably
+like --target-port=6379 and --target-port 6379 are same for one argument
+     -l app=nginx and --labels app=nginx are same but here space iss mandatory as multiple arguments
+
+#Create a Service named nginx of type NodePort to expose pod nginx's port 80 on port 30080 on the nodes:
+
+`kubectl expose pod nginx --port=80 --name nginx-service --type=NodePort --dry-run=client -o yaml`
+(This will automatically use the pod's labels as selectors, but you cannot specify the node port. You have to generate a definition file and then add the node port in manually before creating the service with the pod.)
+
+`kubectl create service nodeport nginx --tcp=80:80 --node-port=30080 --dry-run=client -o yaml`
+(This will not use the pods labels as selectors)
+
+Both the above commands have their own challenges. While one of it cannot accept a selector the other cannot accept a node port. I would recommend going with the `kubectl expose` command. If you need to specify a node port, generate a definition file using the same command and manually input the nodeport before creating the service.
+
+#Deploy a redis pod using the redis:alpine image with the labels set to tier=db.
+root@controlplane:~# kubectl run redis --image=redis:alpine --dry-run=client -l tyer=db -o yaml > redis-pod.yaml
+root@controlplane:~# kubectl run redis --image=redis:alpine -l tier=db --dry-run=client -o yaml > redis-pod.yaml
+
+#Create a deployment named webapp using the image kodekloud/webapp-color with 3 replicas. Try to use imperative commands only. Do not create definition files.
+root@controlplane:~# kubectl create deployment webapp --image=kodekloud/webapp-color --replicas=3 --dry-run=client  -o yaml > webapp-depl.yaml
+root@controlplane:~# 
+
+#Create a new pod called custom-nginx using the nginx image and expose it on container port 8080.
+root@controlplane:~# kubectl run custom-nginx --image=nginx --port=8080 --dry-run=client -o yaml > custom-nginx.yaml
+root@controlplane:~#
+
+#Create a new namespace called dev-ns. Use imperative commands.
+root@controlplane:~# kubectl create ns dev-ns --dry-run=client -o yaml > dev-ns.yaml
+root@controlplane:~#
+
+#Create a new deployment called redis-deploy in the dev-ns namespace with the redis image. It should have 2 replicas. Use imperative commands.
+root@controlplane:~# kubectl create deployment redis-deploy -n dev-ns --image=redis --replicas=2 --dry-run=client  -o yaml > redis-deploy.yaml
+
+#Create a pod called httpd using the image httpd:alpine in the default namespace. Next, create a service of type ClusterIP by the same name (httpd). The target port for the service should be 80. Try to do this with as few steps as possible.
+
+root@controlplane:~# kubectl run httpd --image=httpd:alpine --namespace=default --dry-run=client -o yaml > httpd-pod.yaml
+root@controlplane:~#
+
+root@controlplane:~# kubectl apply -f httpd-pod.yaml 
+pod/httpd created
+
+root@controlplane:~# kubectl expose pod httpd --name=httpd --port=80 --dry-run=client -o yaml> httpd-service.yaml
+root@controlplane:~#
+
+root@controlplane:~# kubectl apply -f httpd-service.yaml 
+service/httpd created
+root@controlplane:~#
+
+or 
+
+root@controlplane:~# kubectl run httpd --image=httpd:alpine --namespace=default --expose --port=80  --dry-run=client -o yaml
+root@controlplane:~# kubectl run httpd --image=httpd:alpine --namespace=default --expose --port=80  --dry-run=client -o yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  name: httpd
+  namespace: default
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    run: httpd
+status:
+  loadBalancer: {}
+---
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  creationTimestamp: null
+  labels:
+    run: httpd
+  name: httpd
+  namespace: default
+spec:
+  containers:
+  - image: httpd:alpine
+    name: httpd
+    ports:
+    - containerPort: 80
+    resources: {}
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+status: {}  
+
+#ENTRYPOINT & CMD
+- If yaml file has command in spec then this will override ENTRYPOINT command of docker file. If there is no command in yaml, then docker files ENTRYPOINT command  will run
+  example
+  Suppose docker file has following
+  .......
+    ENTRYPOINT ["python", "app.py"]    
+  ........	
+  Pod definition file has following
+  .........
+     spec:
+     containers:
+     - name: simple-webapp
+       image: kodekloud/webapp-color
+       command: ["--color","green"]
+  .........	   
+  In this case when Pod(container) is created, it will run --color green command. 
+
+-If yaml file has args section, then it will be placed after the command(either from Dockerfile or yaml as per above logic)
+
+   Dockerfile                               pod-definition.yaml             final command
+-  ENTRYPOINT ["python", "app.py"]          nothing                         .... python app.py
+-  ENTRYPOINT ["python", "app.py"]          nothing                         .... python app.py --color red
+   CMD ["--color", "red"]                                                  
+-  ENTRYPOINT ["python", "app.py"]          command: ["--color","green"]    .... --color green   (if ENTRYPOINT is overriden by command, then CMD is not used even                                                                                                  if there iss no args)
+   CMD ["--color", "red"]                                                   
+-  ENTRYPOINT ["python", "app.py"]          command: ["python","app2.py"]    .... python app2.py --color pink
+   CMD ["--color", "red"]                   args: ["--color","pink"]                             
