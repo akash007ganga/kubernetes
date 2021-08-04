@@ -203,8 +203,17 @@ C:\Users\echypal>
 
 #create another deployment mongo-db and check logs of the pod
 note: 
--For pod: kubectl logs <pod-name>
--For K8s resources: kubectl describe <resource like pod|deployment|service>  <name of the resource>
+- For pod: kubectl logs <pod-name>.
+          kubectl logs -f <pod-name>   (-f helps to see live log trail)
+- For multipod container: 
+    $kubectl logs webapp-2 -c    shows number of containers)
+	$ db   simple-webapp
+	    
+    $kubectl logs -f <pod-name> -c <container-name>
+	$kubectl logs webapp-2 -c simple-webapp
+	or
+	$kubectl logs webapp-2  simple-webapp
+- For K8s resources: kubectl describe <resource like pod|deployment|service>  <name of the resource>
 
 
 1) C:\Users\echypal>kubectl create deployment mongo-depl --image=mongo
@@ -703,6 +712,58 @@ mongodb-deployment-8f6675bc5-sk6q5     1/1     Running   11         38m    172.1
 C:\Users\echypal>
 
 #rolling update
+#Steps
+1) Create
+    kubectl create -f my-deployment-1.yaml
+  
+2) Get
+    kubectl get deployments
+  
+3) Update
+  a) kubectl apply -f my-deployment-2.yaml
+	
+  b) kubectl set image deployment/my-deployment-1 nginx=nginx:1.9.1
+	
+	- Update with change clause recording
+	   master $ kubectl set image deployment/nginx <container-name>=nginx:1.17 --record
+	            kubectl set image deployment/nginx nginx=nginx:1.17 --record
+                deployment.extensions/nginx image updated
+                master $master $
+                 
+       master $ kubectl rollout history deployment nginx
+                deployment.extensions/nginx
+ 
+                REVISION CHANGE-CAUSE
+                1     <none>
+                2     kubectl set image deployment nginx nginx=nginx:1.17 --record=true
+       master $
+	   
+  c) edit an image
+         master $ kubectl edit deployments. nginx --record
+                  deployment.extensions/nginx edited
+ 
+         master $ kubectl rollout history deployment nginx
+                  REVISION CHANGE-CAUSE
+                  1     <none>
+                  2     kubectl set image deployment nginx nginx=nginx:1.17 --record=true
+                  3     kubectl edit deployments. nginx --record=true
+4) Status
+    kubectl rollout status deployment/my-deployment-2
+  
+5) History
+
+    kubectl rollout history deployment/my-deployment-2
+	
+   - Check status of each revision
+      master $ kubectl rollout history deployment nginx --revision=1
+   
+	
+6) Rollback
+    kubectl rollout undo deployment/my-deployment-2
+
+
+
+
 note:  By default, the maximum number of Pods that can be unavailable during the update and the maximum number of new Pods that can be created, is one.Both options can be configured to either numbers or percentages (of Pods)
 
 C:\Users\echypal>kubectl get deployments
@@ -799,8 +860,11 @@ C:\Users\echypal>
 
 Every time you run the curl command, you will hit a different Pod. Notice that all Pods are running the latest version (v2).
 
-C:\Users\echypal>kubectl rollout status deployment kubernetes-bootcamp
-deployment "kubernetes-bootcamp" successfully rolled out
+1) C:\Users\echypal>kubectl rollout status deployment kubernetes-bootcamp
+    deployment "kubernetes-bootcamp" successfully rolled out
+
+2) Rollout History
+    C:\Users\echypal>kubectl rollout history deployment/myapp-depl
 
 C:\Users\echypal>
 
@@ -904,11 +968,17 @@ The deployment is once again using a stable version of the app (v2). The rollbac
 note:
 -Base64 command only works in Linux
 
-[root@sowlx082 ~]# echo -n 'username' | base64
+[root@sowlx082 ~]# echo -n 'username' | base64 
+or
+[root@sowlx082 ~]# echo -n 'username' | base64 –encode
 dXNlcm5hbWU=
 [root@sowlx082 ~]# echo -n 'passsword' | base64
 cGFzc3N3b3Jk
 [root@sowlx082 ~]#
+
+decode 
+[root@sowlx082 ~]# echo  'dXNlcm5hbWU=' | base64 --decode
+username[root@sowlx082 ~]#
 
 1) C:\Users\echypal>kubectl apply -f "C:\repository\git\youtube-tutorial-series\demo-kubernetes-components\mongo-secret.yaml"
 secret/mongodb-secret created
@@ -1556,6 +1626,8 @@ root@controlplane:~#
 
 -o yaml: This will output the resource definition in YAML format on the screen.
 
+if you omit the --dry-run=client but put -o yaml, then the resource will be created in the server  and output will also be directed in yaml file. 
+
 # Generate Deployment YAML file (-o yaml) for nginx. Don't create it(--dry-run)
 
 kubectl create deployment nginx --image=nginx  --dry-run=client -o yaml
@@ -1685,4 +1757,840 @@ status: {}
 -  ENTRYPOINT ["python", "app.py"]          command: ["--color","green"]    .... --color green   (if ENTRYPOINT is overriden by command, then CMD is not used even                                                                                                  if there iss no args)
    CMD ["--color", "red"]                                                   
 -  ENTRYPOINT ["python", "app.py"]          command: ["python","app2.py"]    .... python app2.py --color pink
-   CMD ["--color", "red"]                   args: ["--color","pink"]                             
+   CMD ["--color", "red"]                   args: ["--color","pink"]                      
+
+
+#Create a new ConfigMap for the webapp-color POD. Use the spec given below.
+#ConfigName Name: webapp-config-map
+#Data: APP_COLOR=darkblue  
+
+root@controlplane:~# kubectl create configmap webapp-config-map --from-literal=APP_COLOR=darkblue --dry-run=client -o yaml > webapp-config-map.yaml
+root@controlplane:~#
+
+#check any command
+root@controlplane:~#kubectl explain pods --recursive | grep envFrom -A3
+here 3 is number of lines below envFrom.
+root@controlplane:~#kubectl explain pods --recursive | less 
+(and search for envFrom)
+
+#create secret with following property
+#Secret Name: db-secret
+#Secret 1: DB_Host=sql01
+#Secret 2: DB_User=root
+#Secret 3: DB_Password=password123
+root@controlplane:~# kubectl create secret generic db-secret --from-literal=DB_Host=sql01 --from-literal=DB_User=root --from-literal=DB_Password=password123 --dry-run=client -o yaml > db-secret.yaml
+
+note: check the generic command after secret(which is not required for config map). Imperative method like above create the secret in base 64 encoding form
+
+#Edit the pod 'ubuntu-sleeper' to run the sleep process with user ID 1010. add capabilities to SYS_TIME
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ...
+spec:
+  containers:
+  - command:
+    - sleep
+    - "4800"
+    image: ubuntu
+    securityContext:
+     runAsUser: 1002
+     capabilities:
+       add:
+        - SYS_TIME
+    imagePullPolicy: Always
+    
+for root
+runAsUser: 0
+
+#service account
+- first describe the service account
+  controlplane $ kubectl describe serviceaccount dashboard-sa
+    Name:                dashboard-sa
+    Namespace:           default
+    Labels:              <none>
+    Annotations:         <none>
+    Image pull secrets:  <none>
+    Mountable secrets:   dashboard-sa-token-dmn6x
+    Tokens:              dashboard-sa-token-dmn6x
+    Events:              <none>
+
+- token is a secret. check it
+  controlplane $ kubectl describe secret default-token-qscb8
+    Name:         default-token-qscb8
+    Namespace:    default
+    Labels:       <none>
+    Annotations:  kubernetes.io/service-account.name: default
+                  kubernetes.io/service-account.uid: 81c44a0a-d93f-4b33-bfab-45045b9a0150
+    
+    Type:  kubernetes.io/service-account-token
+    
+    Data
+    ====
+    ca.crt:     1066 bytes
+    namespace:  7 bytes
+    token:      eyJhbGciOiJSUzI1NiIsImtpZCI6InNJbEZ3aU9VdVhFSFVSODV1SFd6YXV3TmZjbm5uMENrX0lmZTg4bEpLTDQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImRlZmF1bHQtdG9rZW4tcXNjYjgiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC5uYW1lIjoiZGVmYXVsdCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjgxYzQ0YTBhLWQ5M2YtNGIzMy1iZmFiLTQ1MDQ1YjlhMDE1MCIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDpkZWZhdWx0OmRlZmF1bHQifQ.KDSFzXwtVl5MziDIVKZw5Ye2gHNz-1emzgkli5CIal2IFA0EtUzZqxpd5DBGsw97UVQLK8dvqRxu-ZxWxkZZe5aQsVjMvU97-JMH35jrCGqr7l9EW2WY4LeN95loQtukahdkGGvKM71QbmIR_9-PY0Di3lnoy-GAn1h82QCdBtkX0F91h7M0oiovFrgPXVOik3xKTQHZ5_NZx6og7hJ0tdGo1tqBPwMo5dS0jht-VUf2UoIs51Jd-_thb5VpkNl24nSUSvihtYVAEkialnIefSAnv4Og-iuUeMA1QUigYZtTgFMxohj_IxgyoY9VlTG0N2o2MBStoKePqj3kbb6qYA
+    controlplane $
+	
+    This token(eyJ...YA) is used for the communication. If we check the secret we get base64 encoding values of this token as follow(ZXlKa....DBnakE=) we can't use that token
+   
+   controlplane $ kubectl get secret dashboard-sa-token-dmn6x -o yaml
+    apiVersion: v1
+    data:
+    ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM1ekNDQWMrZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwcmRXSmwKY201bGRHVnpNQjRYRFRJeE1EY3pNVEUxTkRjME1Wb1hEVE14TURjeU9URTFORGMwTVZvd0ZURVRNQkVHQTFVRQpBeE1LYTNWaVpYSnVaWFJsY3pDQ0FTSXdEUVlKS29aSWh2Y05BUUVCQlFBRGdnRVBBRENDQVFvQ2dnRUJBTU11CmdjczhZSnJSQmFOMXd1U3ZmU2ZFYXRzZmExbXQzKzBQM3J4TldveWFsNGZsWjJyT3ZoTU53QUNMdnNuOFpDakYKM0FGQXpWam5uYnp0ZDZQcUpjQ1hQZFZlVXIyQjBTU3JBcU5xdzBTSUhRTWtNbHBIMnZkWGVyRlRCTStUaE92QQpWWWlQWUl5TllZNkNYVllyZ05wdWFsNFlGZ1JPTUowOFlaamhWaGthVWR0MVA5OHA2NXZXYWh4WTlGVGdMYzYxClFaWE5ZNlNJY3RmWnJ3TFpUYkgwb3BMT2NmWkJjajdadVJrcXB2L0d6L3RZTDF5ZEh4cGEyeXI4OURDbzhKRFYKMVY1SjFSUWsyNUV5Q05ucWJKb1g3NDBpaDVNdmJMenAzTS82UDFvMHR6NHFoLzhkV3ROV2FzWFpzdjRVcmdqawozMm80UlY2UnhVM0cvNXNnZGZjQ0F3RUFBYU5DTUVBd0RnWURWUjBQQVFIL0JBUURBZ0trTUE4R0ExVWRFd0VCCi93UUZNQU1CQWY4d0hRWURWUjBPQkJZRUZEWDV2T2E2NXNGUEtHbnlRWi9WTmRHZVNITWFNQTBHQ1NxR1NJYjMKRFFFQkN3VUFBNElCQVFDa1MzL29kMEpDbHpDWDV3SUthcVNsL0QrR25jWm9wL29GcVl4U01ad2JPTllzSDZjYQpmK0hBNXFJKy9DVjM0M2ZDSmg0dXRuN2pLUC9vaFR1NklOcVVHNjRIMkRsb05EREQyalhvVDU3YXhxZ1Q4MTdNCkpSUjVGbi9tWU1SVGVCbnF1MzYzRFpRcFlCU1BjSVVQUDdtOW5aRWNDc2Z3bmZvS0lOSittNElBeFNGL3NXZncKK1c1MUhvRlVRUi9Bd0t2ZWpwOWJuck1ndlNZd01nMlhPV01HOHlhblk3QUx0RGpWNjAxdVJTVzhxTzlhM3VRSwprODd3SGM3MzZYQnB3SU5MeWMwNXkwNUZHNTgxbk1LU1R0Uk9VRCtiZzdIUkVGcUVnTXdUa2x1M3BNQVpJZU10CklnWFd0SlpRMVVTckFKRXhQRkZBeG13UkZlWGwrMnNoRVpUKwotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+    namespace: ZGVmYXVsdA==
+    token: ZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNkluTkpiRVozYVU5VmRWaEZTRlZTT0RWMVNGZDZZWFYzVG1aamJtNXVNRU5yWDBsbVpUZzRiRXBMVERRaWZRLmV5SnBjM01pT2lKcmRXSmxjbTVsZEdWekwzTmxjblpwWTJWaFkyTnZkVzUwSWl3aWEzVmlaWEp1WlhSbGN5NXBieTl6WlhKMmFXTmxZV05qYjNWdWRDOXVZVzFsYzNCaFkyVWlPaUprWldaaGRXeDBJaXdpYTNWaVpYSnVaWFJsY3k1cGJ5OXpaWEoyYVdObFlXTmpiM1Z1ZEM5elpXTnlaWFF1Ym1GdFpTSTZJbVJoYzJoaWIyRnlaQzF6WVMxMGIydGxiaTFrYlc0MmVDSXNJbXQxWW1WeWJtVjBaWE11YVc4dmMyVnlkbWxqWldGalkyOTFiblF2YzJWeWRtbGpaUzFoWTJOdmRXNTBMbTVoYldVaU9pSmtZWE5vWW05aGNtUXRjMkVpTENKcmRXSmxjbTVsZEdWekxtbHZMM05sY25acFkyVmhZMk52ZFc1MEwzTmxjblpwWTJVdFlXTmpiM1Z1ZEM1MWFXUWlPaUkyTXpNMFpUYzFOaTAxWlRWakxUUTRZbU10T1RGa01pMWtZMlV5T1RNeU1UazVOamtpTENKemRXSWlPaUp6ZVhOMFpXMDZjMlZ5ZG1salpXRmpZMjkxYm5RNlpHVm1ZWFZzZERwa1lYTm9ZbTloY21RdGMyRWlmUS5nYzRqeTNsNVFFa1hRVm5BVHhlRVNMdlJVc3ZKOGZ5SUJxYzBZaDh0UTBJOFBETVpGUzVudXJ5XzM3eUNRWFhjeHVuUDRqMEZxREtfaHRQQ0lNSV9DZlE3OG9qb2FIUUxGWk9QUi1CZ0pHWjE2V1NFRFIyNVB3ckk2a3FVdXRYQkJZTDQ2SWRDdmdsQXRRV21DZnU4ZnA4alBDbDN3ank0R1ZiTUdKN3p4NS00N19yQ01RVDk1SjBGWXNZUS1Fc2REYklRbVNyRFRNTlpIdDZncTAwcWNzSy1majJiTUpaWXI5RWtyREhIMEV0TkhyNTRQN0ZpWVZ3NDV1RUVjcjFPNFpRbktfb3U2QldlWUhPUFcyNS04WFRZd0VJUDUycU9TUHQxYUZfZlRlYU12WGFoSk82V1V1UjliWEVLcjh5c3diZFIwUDU0RGRRNzhOZTVkaDBnakE=
+    .........
+	
+	if you decode the above token, you will get the earlier value
+	
+	[root@sowlx082 ~]# echo -n 'ZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNkluTkpiRVozYVU5VmRWaEZTRlZTT0RWMVNGZDZZWFYzVG1aamJtNXVNRU5UZzRiRXBMVERRaWZRLmV5SnBjM01pT2lKcmRXSmxjbTVsZEdWekwzTmxjblpwWTJWaFkyTnZkVzUwSWl3aWEzVmlaWEp1WlhSbGN5NXBieTl6WlhKMmFXTmxZV05qYjNWdWRDOXVZVzFsYzNCaFkyVWlPaUprWldaaGRXeDBJaXdpYTNWaVpYSnVaWFJsY3k1cGJ5OXpaWEoyYVdObFlXTmpiM1Z1ZEM5elpXTnlaWFF1Ym1GdFpTSTZJbVJoYzJoaWIyRnlaQzF6WVMxMGIydGxiaTFrYlc0MmVDSXNJbXQxWW1WeWJtVjBaWE11YVc4dmMyVnlkbWxqWldGalkyOTFiblF2YzJWeWRtbGpaUzFoWTJOdmRXNTBMbTVoYldVaU9pSmtZWE5vWW05aGNtUXRjMkVpTENKcmRXSmxjbTVsZEdWekxtbHZMM05sY25acFkyVmhZMk52ZFc1MEwzTmxjblpwWTJVdFlXTmpiM1Z1ZEM1MWFXUWlPaUkyTXpNMFpUYzFOaTAxWlRWakxUUTRZbU10T1RGa01pMWtZMlV5T1RNeU1UazVOamtpTENKemRXSWlPaUp6ZVhOMFpXMDZjMlZ5ZG1salpXRmpZMjkxYm5RNlpHVm1ZWFZzZERwa1lYTm9ZbTloY21RdGMyRWlmUS5nYzRqeTNsNVFFa1hRVm5BVHhlRVNMdlJVc3ZKOGZ5SUJxYzBZaDh0UTBJOFBETVpGUzVudXJ5XzM3eUNRWFhjeHVuUDRqMEZxREtfaHRQQ0lNSV9DZlE3OG9qb2FIUUxGWk9QUi1CZ0pHWjE2V1NFRFIyNVB3ckk2a3FVdXRYQkJZTDQ2SWRDdmdsQXRRV21DZnU4ZnA4alBDbDN3ank0R1ZiTUdKN3p4NS00N19yQ01RVDk1SjBGWXNZUS1Fc2REYklRbVNyRFRNTlpIdDZncTAwcWNzSy1majJiTUpaWXI5RWtyREhIMEV0TkhyNTRQN0ZpWVZ3NDV1RUVjcjFPNFpRbktfb3U2QldlWUhPUFcyNS04WFRZd0VJUDUycU9TUHQxYUZfZlRlYU12WGFoSk82V1V1UjliWEVLcjh5c3diZFIwUDU0RGRRNzhOZTVkaDBnakE=' | base64 --decode
+	
+    eyJhbGciOiJSUzI1NiIsImtpZCI6InNJbEZ3aU9VdVhFSFVSODV1SFd6YXV3TmZjbm5uMENrX0lmZTg4bEpLTDQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImRhc2hib2FyZC1zYS10b2tlbi1kbW42eCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJkYXNoYm9hcmQtc2EiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiI2MzM0ZTc1Ni01ZTVjLTQ4YmMtOTFkMi1kY2UyOTMyMTk5NjkiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpkYXNoYm9hcmQtc2EifQ.gc4jy3l5QEkXQVnATxeESLvRUsvJ8fyIBqc0Yh8tQ0I8PDMZFS5nury_37yCQXXcxunP4j0FqDK_htPCIMI_CfQ78ojoaHQLFZOPR-BgJGZ16WSEDR25PwrI6kqUutXBBYL46IdCvglAtQWmCfu8fp8jPCl3wjy4GVbMGJ7zx5-47_rCMQT95J0FYsYQ-EsdDbIQmSrDTMNZHt6gq00qcsK-fj2bMJZYr9EkrDHH0EtNHr54P7FiYVw45uEEcr1O4ZQnK_ou6BWeYHOPW25-8XTYwEIP52qOSPt1aF_fTeaMvXahJO6WUuR9bXEKr8yswbdR0P54DdQ78Ne5dh0gjA
+	[root@sowlx082 ~]#
+	
+	
+- service account should be specified in pod definition. 
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: ..
+  spec:
+    template:
+	 metadata: 
+	  name: 
+	 spec:
+	   containers: 
+	     - image:
+	   serviceAccount: dashboard-sa
+.......
+
+#how to specify resource request and limit
+
+Pod specification 
+......
+spec:
+  containers:
+  - args:
+    - sleep
+    - "1000"
+    image: ubuntu
+    imagePullPolicy: Always
+    name: cpu-stress
+    resources:
+      limits:
+        cpu: "2"
+		memory: 20Mi
+      requests:
+        cpu: "1"
+		memory: 5Mi
+
+M = megabyte = 1000 KB
+Mi = Mebibyte = 1024 Ki(kibibyte)
+
+#Taints & Tollerations
+1: Taint is for nodes and tolleration is for Pod
+
+#Do any taints exist on node01 node?
+root@controlplane:~# kubectl describe node node01 | grep taint 
+root@controlplane:~#
+
+#Create a taint on node01 with key of spray, value of mortein and effect of NoSchedule
+root@controlplane:~# kubectl taint node node01 spray=mortein:NoSchedule    
+or
+root@controlplane:~# kubectl taint nodes node01 spray=mortein:NoSchedule    
+node/node01 tainted
+root@controlplane:~#
+
+#check taint in the node
+
+root@controlplane:~# kubectl describe node node01 | grep Taint 
+Taints:             spray=mortein:NoSchedule
+root@controlplane:~#
+
+#Do you see any taints on controlplane node?
+root@controlplane:~# kubectl describe node controlplane| grep Taint
+Taints:             node-role.kubernetes.io/master:NoSchedule
+root@controlplane:~# 
+
+#create tolerations in the pod
+apiVersion: v1
+kind:Pod
+metadata:
+  name: bee
+spec:
+  containers:
+   - name: bee-container
+     image: nginx
+  tolerations: 
+   - key: "spray"
+     operator: "Equal"
+     value: "mortein"
+	 effect: "NoSchedule"
+	 
+note: quations are not necessary
+	 
+#Check toleration in the Pod 
+root@controlplane:~# kubectl describe pod bee
+......
+root@controlplane:~# kubectl describe pod bee
+Name:         bee
+.......
+Containers:
+  .......
+Conditions:
+  .......
+Volumes:
+  .....
+QoS Class:       BestEffort
+Node-Selectors:  <none>
+Tolerations:     node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                 node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+                 spray=mortein:NoSchedule
+Events:
+  .....
+.....
+
+#Remove the taint on controlplane, which currently has the taint effect of NoSchedule.
+1)Current status
+   root@controlplane:~# kubectl describe node controlplane| grep Taint
+   Taints:             node-role.kubernetes.io/master:NoSchedule
+   root@controlplane:~#
+   
+2) Remove Taint
+   root@controlplane:~# kubectl taint nodes controlplane node-role.kubernetes.io/master:NoSchedule- 
+   node/controlplane untainted
+   root@controlplane:~# 
+   
+3) root@controlplane:~# kubectl describe node controlplane| grep Taint
+   Taints:             <none>
+   root@controlplane:~#
+   
+#node selectors
+1) label  the node as reqired  
+    root# kubectl label nodes <node-name> <label-key>=<label-value> 
+	root# kubectl label nodes node01 size=Large 
+
+2) Use the label in Pod definition file to be scheduled in the required node
+     apiVersion: v1
+     kind: Pod
+     metadata:
+	   name: myapp-pod
+	 spec:
+	   containers: 
+	   - name: data-processor
+	     image: data-processor
+       nodeSelector:
+	     size: Large
+		 
+#limitations
+can't request something like
+- Large or medium
+- not small  (i.e. place the pod on any node which is not small)
+
+# Solution: Node Affinity
+    apiVersion: v1
+     kind: Pod
+     metadata:
+	   name: myapp-pod
+	 spec:
+	   containers: 
+	   - name: data-processor
+	     image: data-processor
+       affinity: 
+	     nodeAffinity: 
+		  requiredDuringSchedulingIgnoreDuringExecution: 
+		    nodeSelectorTerms: 
+		    - matchExpresssions:
+			  - key: size
+			    operator: In
+				values: 
+				- Large
+				- Medium
+				
+				
+	.............................
+	        - matchExpresssions:
+			  - key: size
+	            operator: NotIn
+				values: 
+				- Small
+	..............................
+    Place the Pod in some node which is leveled
+	         - matchExpresssions:
+			   - key: size
+	             operator: Exists
+	...............................
+	
+	Node Affinity types
+	 - requiredDuringSchedulingIgnoreDuringExecution
+	 - preferredDuringSchedulingIgnoreDuringExecution
+	 
+#Check Labels (and values) exist on node node01?
+  root@controlplane:~# kubectl get nodes node01 --show-labels
+  or  
+  root@controlplane:~# kubectl describe node node01
+     Name:               node01
+     Roles:              <none>
+     Labels:             beta.kubernetes.io/arch=amd64
+                         beta.kubernetes.io/os=linux
+                         kubernetes.io/arch=amd64
+                         kubernetes.io/hostname=node01
+                         kubernetes.io/os=linux
+     Annotations:        flannel.alpha.coreos.com/backend-data: {"VNI":1,"VtepMAC":"46:fb:b5:32:db:36"}
+ 
+#Multi container pods
+ #Sidecar
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: ..
+  spec:
+    template:
+	 metadata: 
+	  name: 
+	 spec:
+	   containers: 
+	     - image:simple-webapp
+		   name: simple-webapp
+		 - image: log-agent
+		   name: log-agent
+	   
+ #Pod lifecycle
+1. Pending: Scheduler finds where to put the Pod
+2. ContainerCreating: Pod scheduled in some node. Pulls image and starting container.
+3. Running: All the containers in a Pod is created
+4. 
+
+#Pod Conditions
+1. PodScheduled: 
+2. Initialized: 
+3. Containers Ready:
+4. Ready: 
+
+# Readiness Probe
+1) for web server
+     apiServer: v1
+     kind: Pod
+     metadata:
+       name: simple-webapp
+       labels:
+         app: simple-webapp
+     spec:
+        containers:
+        - image: simple-webapp
+          name: simple-webapp
+          ports:
+          - containerPort: 8080
+          readinesssProbe:
+            httpGet: 
+               path: /api/ready
+               port: 8080
+
+2) or for DB service(tcp)
+
+      readinesssProbe:
+             tcpSocket: 
+                port: 3306
+      
+3) or for exec
+
+      readinesssProbe:
+             exec: 
+      	     command: 
+               - cat
+               - /app/is_ready
+			   
+4) initial delay and probe period.      		 
+
+readinesssProbe:
+            httpGet: 
+               path: /api/ready
+               port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreashold: 8  (default:3)			
+#Liveness
+Similar to readinessProbe
+	 apiServer: v1
+     kind: Pod
+     metadata:
+       name: simple-webapp
+       labels:
+         app: simple-webapp
+     spec:
+        containers:
+        - image: simple-webapp
+          name: simple-webapp
+          ports:
+          - containerPort: 8080
+          livenessProbe:
+            httpGet: 
+               path: /api/ready
+               port: 8080
+			   
+all 1-4 works for readiness
+
+if properly configured, then ready column will correctly show the readiness (Ready=0 though status is running)
+root@controlplane:~# kubectl get pod
+NAME              READY   STATUS    RESTARTS   AGE
+simple-webapp-1   1/1     Running   0          28m
+simple-webapp-2   0/1     Running   0          90s
+
+note: Even if livenessProbe is enabled, K8s takes some time to detects whether the Pod is really liuve or not and restarts based on it. In that time service will be down.
+
+#Monitoring using metric server
+A) Minikube
+1. Enable metrics server 
+    C:\Users\echypal>minikube addons enable metrics-server
+
+2. Give some time to collect the Node & Pod level metrics for the K8s cluster
+
+
+B)Othres
+1. Clone required repositiories from git\kubernetes\nginx-deployment-result
+     root@controlplane:~# git clone https://github.com/kodekloudhub/kubernetes-metrics-server.git
+     Cloning into 'kubernetes-metrics-server'...
+     remote: Enumerating objects: 24, done.
+     remote: Counting objects: 100% (12/12), done.
+     remote: Compressing objects: 100% (12/12), done.
+     remote: Total 24 (delta 4), reused 0 (delta 0), pack-reused 12
+     Unpacking objects: 100% (24/24), done.
+	 
+2. Deploy the metrics-server by creating all the components downloaded.
+     root@controlplane:~# ls
+        kubernetes-metrics-server  sample.yaml
+	 root@controlplane:~/kubernetes-metrics-server# kubectl create -f .
+        clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+        clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+        rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+        apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
+        serviceaccount/metrics-server created
+        deployment.apps/metrics-server created
+        service/metrics-server created
+        clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+        clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+        root@controlplane:~/kubernetes-metrics-server#
+		
+3. Give some time to collect the Node & Pod level metrics for the K8s cluster
+     [root@sowlx082 ~]# watch "kubectl top node"
+
+C) Monitoring
+   root@controlplane:~/kubernetes-metrics-server# kubectl top node
+      NAME           CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+      controlplane   254m         0%     943Mi           0%        
+      node01         283m         0%     687Mi           0%        
+      root@controlplane:~/kubernetes-metrics-server#
+	
+   note: 254m is 254 mili cores	
+	  
+   root@controlplane:~/kubernetes-metrics-server# kubectl top pod 
+      NAME       CPU(cores)   MEMORY(bytes)   
+      elephant   44m          52Mi            
+      lion       2m           7Mi             
+      rabbit     152m         106Mi 
+
+#select apps based on labels
+apiVersion:apps/v1
+kind:Deployment
+metadata:
+  name: simple-webapp
+  labels:                             (labels for ReplicaSet)
+    app: App1
+	function: Front-end
+  annotations:                        (for recording other details like phone number, build version etc.)
+    buildVersion: 1.34
+spec:
+  replicas: 3
+  selector:                           (connect ReplicaSet with Pod. sshould match the labels on the Pod)
+    matchLabels:
+      app: App1
+  template:
+     metadata:                      (labels for POD)
+	   labels: 
+	     app=App1
+	     function: Front-end
+	 spec:
+	   containers: 
+	   - name: simple-webapp
+         image: simple-webapp	   
+      
+
+1) Use labels
+   root@controlplane:~# kubectl get pods --show-labels
+
+   root@controlplane:~# kubectl get pods -l env=dev --no-headers | wc -l
+     7
+   or
+   root@controlplane:~# kubectl get pods --selector env=dev --no-headers | wc -l
+     7  
+2) Check labels in all objects
+     root@controlplane:~# kubectl get all -l env=prod
+      NAME              READY   STATUS    RESTARTS   AGE
+      pod/app-1-zzxdf   1/1     Running   0          4m26s
+      pod/app-2-l79qv   1/1     Running   0          4m27s
+      pod/auth          1/1     Running   0          4m27s
+      pod/db-2-xzcct    1/1     Running   0          4m27s
+      
+      NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+      service/app-1   ClusterIP   10.98.157.96   <none>        3306/TCP   4m26s
+      
+      NAME                    DESIRED   CURRENT   READY   AGE
+      replicaset.apps/app-2   1         1         1       4m27s
+      replicaset.apps/db-2    1         1         1       4m27s
+      root@controlplane:~#	
+
+3) use more than one labels
+    root@controlplane:~# kubectl get pods -l bu=finance,env=prod,tier=frontend 
+       NAME          READY   STATUS    RESTARTS   AGE
+       app-1-zzxdf   1/1     Running   0          15m
+       root@controlplane:~# 
+
+#restartPolicy
+apiVersion: v1
+kind: Pod
+metadata:
+  name: math-pod
+spec:                                   ---------------|
+  containers:                                          |
+  - name: math-add                                     |
+    image: ubuntu                                      |
+	command: ['expr', '3', '+', '2']                   |
+    restartPolicy: Always | Never | OnFailure          |
+													   |
+#Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: math-add-job
+spec:
+  backoffLimit: 4                 [fail a Job after 4 retries]
+  completions: 3                  [3 Pod created for the Job sequentially. If 2 fails then it again create 2 sequentially. Finally total successful pod will be 3]
+  parallelism: 3                  [3 pod started in parallel for the job. If 2 pod fails then it start 2 again. Finally total successful pod will be 3]
+  template:
+          ---------------------------------------------|  
+    spec:                                              |
+      containers:                                      |
+      - name: math-add                                 | Pod Definition
+        image: ubuntu                                  |
+	    command: ['expr', '3', '+', '2']               |
+        restartPolicy: Always | Never | OnFailure      |
+      
+ - output can be seen in the log of the Pod
+   kubectl logs <pod-name>
+   
+#CronJob
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: reporting-cron-job
+spec:                       (spec for cron)
+  schedule: "*/1 * * * *"
+  jobTemplate: 
+            ------------------------------------------------||
+	 spec:                  (spec for job)                  ||
+        completions: 3                                      ||
+        parallelism: 3                                      ||
+        template:                                           ||
+          spec:             (spec for pod)                  ||
+            containers:                                     ||
+            - name: math-add                                || Job Definition
+              image: ubuntu                                 ||
+	          command: ['expr', '3', '+', '2']              ||
+              restartPolicy: Always | Never | OnFailure     ||
+            
+ 
+root@controlplane:~# kubectl create cronjob  throw-dice-cron-job  --image=kodekloud/throw-dice --schedule="30 21 * * *" --dry-run=client -o yaml > cron.yaml
+
+#Services
+1) NodePort: Listen to a port on the Node and Forward request to a Pod. This service make internal Pod accessible on a port on the Node
+       - Port of the Pod. TargetPort
+	   - Port where service is running: 
+	   - Port of the Node which is open for external world. NodePort (Range: 30000-30267)
+	   
+2) ClusterIp: Creates a virtual IP inside the cluster to enable communication between different services like a set of frontend servers & set of backend servers.
+3) LoadBalancer: Distribute load accross web server
+
+
+#Complete Service
+apiVersion: v1
+kind: Service
+metadata:
+   Name: myapp-service
+   Labels: 
+     app: myapp-service
+spec:
+   type: ClusterIP | NodePort | LoadBalancer  (if not specified then default ClusterIP)
+   selector:                            ||  
+     app: myapp                         || Form pod 
+	 tier: front-end                    ||  
+   ports:
+   - protocol: 
+     targetPort: 80    (port of the Pod)
+     port:     80      (mandatory> Port of the Service)
+	 nodePort: 30008   (exposed port for NodePort Service)
+
+
+#Ingress
+A) What need for Ingress Controller
+- A deployment of Nginx Ingress IMAGE
+- A service to expose it
+- A config map to feed Nginx config data
+- A service account with right permissions to acess all of this object
+
+
+B) Ingress-resource
+
+apiVersion: networking.k8s.io/v1                                apiVersion: networking.k8s.io/v1
+kind: Ingress                                                   kind: Ingress
+metadata:                                                       metadata:
+  name: ingress-wear-watch                                        name: ingress-wear-watch
+  namespace: critical-space                  					  namespace: critical-space
+  annotations:                                                    annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /                    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"                nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:                                                           spec:
+  rules:                                                        rules: 
+                                                                - host: wear.my-online-store.com
+  - http:                                                           http:                                              
+     paths:                                                           paths:
+	 - path: /wear
+	   backend:                                                       - backend:
+	     service:                                                         service: 
+		    name: wear-service                                               name: wear-s ervice
+		    port: 80                                                         port: 80
+	                                                            - host: watch.my-online-store.com
+	 - path: /watch                                                 http:
+       backend:                                                       paths:
+	     service:                                                     - backend: 
+		    name: watch-service                                           service:
+			port: 80                                                        name: watch-service
+		                                                                    port: 80 
+		                                                                  
+
+
+root@controlplane:~# kubectl get ingress --all-namespaces
+                     NAMESPACE   NAME                 CLASS    HOSTS   ADDRESS   PORTS   AGE
+                     app-space   ingress-wear-watch   <none>   *                 80      18m
+
+
+#ingress controller deploy
+
+1) Create a separate namespace ingress-space  for ingress activity
+
+       root@controlplane:~# kubectl create namespace ingress-space 
+                            namespace/ingress-space created
+							
+       root@controlplane:~# kubectl get namespaces
+                            NAME              STATUS   AGE
+                            app-space         Active   4m9s
+                            default           Active   7m11s
+                            ingress-space     Active   11s
+                            kube-node-lease   Active   7m14s
+                            kube-public       Active   7m14s
+                            kube-system       Active   7m14s
+       root@controlplane:~# 
+
+2) The Ingress Controller(here NGINX) requires a ConfigMap object. Create a ConfigMap object in the ingress-space (Name: nginx-configuration)
+
+       root@controlplane:~# kubectl -n ingress-space create configmap nginx-configuration
+                            configmap/nginx-configuration created
+							
+       root@controlplane:~# kubectl -n ingress-space get configmap
+                            NAME                  DATA   AGE
+                            kube-root-ca.crt      1      2m43s
+                            nginx-configuration   0      11s
+       root@controlplane:~# 
+
+3) The NGINX Ingress Controller requires a ServiceAccount. Create a ServiceAccount in the ingress-space namespace(Name: ingress-serviceaccount)
+       root@controlplane:~# kubectl -n ingress-space create sa ingress-serviceaccount
+                            serviceaccount/ingress-serviceaccount created
+							
+       root@controlplane:~# kubectl -n ingress-space get serviceaccount
+                            NAME                     SECRETS   AGE
+                            default                  1         4m29s
+                            ingress-serviceaccount   1         15s
+       root@controlplane:~# 
+
+4) Roles
+       root@controlplane:~# kubectl -n ingress-space get role
+                            NAME           CREATED AT
+                            ingress-role   2021-08-04T14:40:57Z
+							
+       root@controlplane:~# kubectl -n ingress-space describe role ingress-role 
+                            Name:         ingress-role
+                            Labels:       app.kubernetes.io/name=ingress-nginx
+                                          app.kubernetes.io/part-of=ingress-nginx
+                            Annotations:  <none>
+                            PolicyRule:
+                              Resources   Non-Resource URLs  Resource Names                     Verbs
+                              ---------   -----------------  --------------                     -----
+                              configmaps  []                 []                                 [get create]
+                              configmaps  []                 [ingress-controller-leader-nginx]  [get update]
+                              endpoints   []                 []                                 [get]
+                              namespaces  []                 []                                 [get]
+                              pods        []                 []                                 [get]
+                              secrets     []                 []                                 [get]
+       root@controlplane:~#
+
+5) RoleBinding
+       root@controlplane:~# kubectl -n ingress-space get rolebinding
+                            NAME                   ROLE                AGE
+                            ingress-role-binding   Role/ingress-role   2m34s
+							
+       root@controlplane:~# kubectl -n ingress-space describe rolebinding ingress-role-binding 
+                            Name:         ingress-role-binding
+                            Labels:       app.kubernetes.io/name=ingress-nginx
+                                          app.kubernetes.io/part-of=ingress-nginx
+                            Annotations:  <none>
+                            Role:
+                              Kind:  Role
+                              Name:  ingress-role
+                            Subjects:
+                              Kind            Name                    Namespace
+                              ----            ----                    ---------
+                              ServiceAccount  ingress-serviceaccount  
+       root@controlplane:~#
+
+6) Let us now deploy the Ingress Controller.
+
+    ---
+                   apiVersion: apps/v1
+                   kind: Deployment
+                   metadata:
+                     name: ingress-controller
+                     namespace: ingress-space
+                   spec:
+                     replicas: 1
+                     selector:
+                       matchLabels:
+                         name: nginx-ingress
+                     template:
+                       metadata:
+                         labels:
+                           name: nginx-ingress
+                       spec:
+                         serviceAccountName: ingress-serviceaccount
+                         containers:
+                           - name: nginx-ingress-controller
+                             image: quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.21.0
+                             args:
+                               - /nginx-ingress-controller
+                               - --configmap=$(POD_NAMESPACE)/nginx-configuration
+                               - --default-backend-service=app-space/default-http-backend
+                             env:
+                               - name: POD_NAME
+                   			  valueFrom:
+                                   fieldRef:
+                                     fieldPath: metadata.name
+                               - name: POD_NAMESPACE
+                                 valueFrom:
+                                   fieldRef:
+                                     fieldPath: metadata.namespace
+                             ports:
+                               - name: http
+                                 containerPort: 80
+                               - name: https
+                                 containerPort: 443
+                   			  
+        root@controlplane:~# kubectl -n ingress-space get deploy
+                             NAME                 READY   UP-TO-DATE   AVAILABLE   AGE
+                             ingress-controller   0/1     1            0           41s
+        root@controlplane:~#
+   
+7) Let us now create a service to make Ingress available to external users. Spec 
+     Name: ingress
+     Type: NodePort
+     Port: 80
+     TargetPort: 80
+     NodePort: 30080
+     Namespace: ingress-space
+     Use the right selector
+
+     root@controlplane:~# kubectl -n ingress-space create svc nodeport ingress  --tcp=80:80 --node-port=30080  --dry-run=client -o yaml > ingress-svc.yaml
+     root@controlplane:~# 
+
+              apiVersion: v1
+              kind: Service
+              metadata:
+                name: ingress
+                namespace: ingress-space
+              spec:
+                ports:
+                - nodePort: 30080
+                  port: 80
+                  protocol: TCP
+                  targetPort: 80
+                selector:
+                  name: nginx-ingress
+                type: NodePort
+  
+8) Create the ingress resource to make the applications available at /wear and /watch on the Ingress service. Create the ingress in the app-space namespace. Spec
+        Path: /wear
+        Path: /watch
+        Configure correct backend service for /wear
+        Configure correct backend service for /watch
+        Configure correct backend port for /wear service
+        Configure correct backend port for /watch service
+
+
+       root@controlplane:~# kubectl -n app-space create ingress resource \
+                            --rule="/wear*=wear-service:8080"  \
+							--rule="/watch*=video-service:8080"  \
+							--default-backend=default-http-backend:80 \
+							--annotation nginx.ingress.kubernetes.io/rewrite-target=/   \
+							--annotation nginx.ingress.kubernetes.io/ssl-redirect=false  \
+							--dry-run=client -o yaml> ingress-resource.yaml
+	   
+	   note: /wear* means path=/wear and pathType: Prefix
+
+       root@controlplane:~# vi ingress-resource.yaml 
+       root@controlplane:~#
+
+                 apiVersion: networking.k8s.io/v1
+                 kind: Ingress
+                 metadata:
+                   name: resource
+                   namespace: app-space
+                   annotations:
+                     nginx.ingress.kubernetes.io/rewrite-target: /
+                     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+                 spec:
+                   defaultBackend:
+                     service:
+                       name: default-http-backend
+                       port:
+                         number: 80
+                   rules:
+                   - http:
+                       paths:
+                       - backend:
+                           service:
+                             name: wear-service
+                             port:
+                               number: 8080
+                         path: /wear
+                         pathType: Prefix
+                       - backend:
+                           service:
+                             name: video-service
+                             port:
+                               number: 8080
+                         path: /watch
+                         pathType: Prefix
+			  
+"ingress-resource.yaml" 28L, 546C 
+
+   
+#aliases
+export ns=default
+alias k='kubectl -n $ns' # This helps when namespace in question doesn't have a friendly name 
+alias kdr= 'kubectl -n $ns -o yaml --dry-run'.  # run commands in dry run mode and generate yaml.
+
+or
+
+
+
+alias k=kubectl
+
