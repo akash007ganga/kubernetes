@@ -2377,6 +2377,8 @@ root@controlplane:~# kubectl get ingress --all-namespaces
 
 #ingress controller deploy
 
+setup: https://github.com/akash007ganga/kubernetes/blob/main/materials/tutorial-images/ingress-1.JPG
+
 1) Create a separate namespace ingress-space  for ingress activity
 
        root@controlplane:~# kubectl create namespace ingress-space 
@@ -2581,7 +2583,8 @@ root@controlplane:~# kubectl get ingress --all-namespaces
                          pathType: Prefix
 			  
 "ingress-resource.yaml" 28L, 546C 
-
+	
+	
    
 #aliases
 export ns=default
