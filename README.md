@@ -101,8 +101,8 @@ C:\Users\echypal>kubectl create deployment nginx-depl --image=nginx
 deployment.apps/nginx-depl created
 
 #incase pod creation is required
-C:\Users\echypal>kubectl run pod nginx --image=nginx
-pod/pod created
+C:\Users\echypal>kubectl run nginx --image=nginx
+pod/nginx created
 
 C:\Users\echypal>kubectl run redis --image=redis123 --dry-run=client -o yaml > pod.yaml
 C:\Users\echypal>notepad pod.yaml
@@ -980,6 +980,11 @@ decode
 [root@sowlx082 ~]# echo  'dXNlcm5hbWU=' | base64 --decode
 username[root@sowlx082 ~]#
 
+to include the newline character
+username[root@sowlx082 ~]# echo `echo dXNlcm5hbWU= | base64 -d`
+username
+[root@sowlx082 ~]#	
+
 1) C:\Users\echypal>kubectl apply -f "C:\repository\git\youtube-tutorial-series\demo-kubernetes-components\mongo-secret.yaml"
 secret/mongodb-secret created
 
@@ -1563,11 +1568,15 @@ C:\Users\echypal>
 
 
 
-
+----------------------------------------------------------------------------------------------------------------------------------------------
 
 
 #find pod in all namespacess
 root@controlplane:~# kubectl get pods --all-namespaces
+
+or 
+
+root@controlplane:~# kubectl get pods --A
 
 #create pod (command line)
 Notes:
@@ -1634,7 +1643,7 @@ kubectl create deployment nginx --image=nginx  --dry-run=client -o yaml
 kubectl create deployment nginx --image=nginx  --dry-run=client -o yaml > nginx-deployment.yaml
 
 # Create a Service named redis-service of type ClusterIP to expose pod redis on port 6379
-kubectl expose pod redis --port=6379 --target-port=6379 --name redis-service --dry-run=client -o yaml
+`kubectl expose pod redis --name redis-service --port=6379 --target-port=6379  --dry-run=client -o yaml`
 (This will automatically use the pod's labels as selectors)
 
 
@@ -1648,13 +1657,13 @@ like --target-port=6379 and --target-port 6379 are same for one argument
 
 #Create a Service named nginx of type NodePort to expose pod nginx's port 80 on port 30080 on the nodes:
 
-`kubectl expose pod nginx --port=80 --name nginx-service --type=NodePort --dry-run=client -o yaml`
+`kubectl expose pod nginx --name nginx-service --port=80  --type=NodePort --dry-run=client -o yaml`
 (This will automatically use the pod's labels as selectors, but you cannot specify the node port. You have to generate a definition file and then add the node port in manually before creating the service with the pod.)
 
 `kubectl create service nodeport nginx --tcp=80:80 --node-port=30080 --dry-run=client -o yaml`
 (This will not use the pods labels as selectors)
 
-Both the above commands have their own challenges. While one of it cannot accept a selector the other cannot accept a node port. I would recommend going with the `kubectl expose` command. If you need to specify a node port, generate a definition file using the same command and manually input the nodeport before creating the service.
+Both the above commands have their own challenges. While one of it cannot accept a node port the other cannot accept a seletor. I would recommend going with the `kubectl expose` command. If you need to specify a node port, generate a definition file using the same command and manually input the nodeport before creating the service.
 
 #Deploy a redis pod using the redis:alpine image with the labels set to tier=db.
 root@controlplane:~# kubectl run redis --image=redis:alpine --dry-run=client -l tyer=db -o yaml > redis-pod.yaml
@@ -1754,7 +1763,7 @@ status: {}
 -  ENTRYPOINT ["python", "app.py"]          nothing                         .... python app.py
 -  ENTRYPOINT ["python", "app.py"]          nothing                         .... python app.py --color red
    CMD ["--color", "red"]                                                  
--  ENTRYPOINT ["python", "app.py"]          command: ["--color","green"]    .... --color green   (if ENTRYPOINT is overriden by command, then CMD is not used even                                                                                                  if there iss no args)
+-  ENTRYPOINT ["python", "app.py"]          command: ["--color","green"]    .... --color green   (if ENTRYPOINT is overriden by command, then CMD is not used even                                                                                                  if there is no args)
    CMD ["--color", "red"]                                                   
 -  ENTRYPOINT ["python", "app.py"]          command: ["python","app2.py"]    .... python app2.py --color pink
    CMD ["--color", "red"]                   args: ["--color","pink"]                      
@@ -1772,22 +1781,151 @@ root@controlplane:~#kubectl explain pods --recursive | grep envFrom -A3
 here 3 is number of lines below envFrom.
 root@controlplane:~#kubectl explain pods --recursive | less 
 (and search for envFrom)
+root@controlplane:~# kubectl explain pod.spec.containers.livenessProbe
+-------------------------------------------------------------------ConfigMap-------------------------------------------------------------------
+#creation (imperative)
+root@controlplane:~# kubectl create configmap webapp-config-map \
+                                    --from-literal=APP_COLOR=darkblue
+root@controlplane:~#
 
-#create secret with following property
-#Secret Name: db-secret
-#Secret 1: DB_Host=sql01
-#Secret 2: DB_User=root
-#Secret 3: DB_Password=password123
-root@controlplane:~# kubectl create secret generic db-secret --from-literal=DB_Host=sql01 --from-literal=DB_User=root --from-literal=DB_Password=password123 --dry-run=client -o yaml > db-secret.yaml
-
-note: check the generic command after secret(which is not required for config map). Imperative method like above create the secret in base 64 encoding form
-
-#Edit the pod 'ubuntu-sleeper' to run the sleep process with user ID 1010. add capabilities to SYS_TIME
-
+#creation declarative
 apiVersion: v1
-kind: Pod
+kind: ConfigMap
 metadata:
-  name: ...
+  name: webapp-config-map
+data:
+  DB_Host=sql01    
+
+#configure in pod
+
+#using valueFrom
+
+spec:                          
+  containers:                  
+  - name: mycontainer          
+    image: redis               
+    env:                       
+    - name: DB_Host  
+      valueFrom:             
+      configMapKeyRef:        
+          name: webapp-config-map     
+          key: DB_Host
+			
+#using envFrom
+spec:
+  containers:
+    - name: test-container
+      image: k8s.gcr.io/busybox
+      command: [ "/bin/sh", "-c", "env" ]
+      envFrom:
+      - configMapRef:
+          name: webapp-config-map
+		  
+#using volume
+spec:
+  volumes:
+  - name: webapp-config-volume
+    configMap:
+      name: webapp-config-map
+
+--------------------------------------------------------------------Secret ----------------------------------------------------------------------
+#creation (imperative)
+
+root@controlplane:~# kubectl create secret generic db-secret /
+                                --from-literal=DB_Host=sql01 /
+								--from-literal=DB_User=root /
+								--from-literal=DB_Password=password123
+								
+note: check the generic command after secret(which is not required for config map). Imperative method like above create the secret in base 64 encoding form								
+								
+#creation declarative
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysecret
+type: Opaque
+data:
+  USER_NAME: YWRtaW4=
+  PASSWORD: MWYyZDFlMmU2N2Rm
+								
+								
+#specify hashed values
+[root@sowlx082 ~]# echo -n 'sql01' | base64
+c3FsMDE=
+								
+#view
+kubectl get secrets
+
+#view more info
+
+kubectl describe secrets db-secret
+
+note: This shows attributes but hides values
+
+#view values
+kubectl describe secrets db-secret -o yaml
+
+note: values are hashed
+
+#decode values
+[root@sowlx082 ~]# echo `echo -n 'c3FsMDE=' | base64 --decode`
+sql01
+[root@sowlx082 ~]#
+
+#configure in pod
+
+#using valueFrom
+
+spec:                          
+  containers:                  
+  - name: mycontainer          
+    image: redis               
+    env:                       
+      - name: SECRET_USERNAME  
+        valueFrom:             
+          secretKeyRef:        
+            name: mysecret     
+            key: username      
+      - name: SECRET_PASSWORD  
+        valueFrom:             
+          secretKeyRef:        
+            name: mysecret     
+            key: password      
+  
+
+#using envFrom
+spec:
+  containers:
+    - name: test-container
+      image: k8s.gcr.io/busybox
+      command: [ "/bin/sh", "-c", "env" ]
+      envFrom:
+      - secretRef:
+          name: db-secret
+		  
+#using volume
+spec:
+  volumes:
+  - name: secret-volume
+    secret:
+      secretName: db-secret
+
+note: in above case each attribute will be created as a file with value of the secret as file content. 
+
+--------------------------------------------------------------------Security ----------------------------------------------------------------------
+#run container with user ID 1002. add capabilities to SYS_TIME
+
+#Pod level
+spec:
+  securityContext:
+     runAsUser: 1002
+  containers:
+  - command:
+    - sleep
+    - "4800"
+    image: ubuntu     
+		
+#container level		
 spec:
   containers:
   - command:
@@ -1798,14 +1936,23 @@ spec:
      runAsUser: 1002
      capabilities:
        add:
-        - SYS_TIME
-    imagePullPolicy: Always
+       - SYS_TIME
     
-for root
-runAsUser: 0
+    
+note: for root, runAsUser: 0
+      capabilities are only supported as container level
 
-#service account
-- first describe the service account
+------------------------------------------------------------------service-account------------------------------------------------------------------------
+#notes 
+  1: User accounts are used by humans(developer/administrator) and service account is used by machines(Jenkins/prometheus) for calling k8s API.
+  2: Each namespace in K8s has one default service account
+  3: Whenever a Pod is created, the default service account & token is automatically mounted as a volume inside the container. To stop this set   automountServiceAccountToken: false
+
+#create
+
+  controlplane $kubectl create sa  dashboard-sa
+
+# first describe the service account
   controlplane $ kubectl describe serviceaccount dashboard-sa
     Name:                dashboard-sa
     Namespace:           default
@@ -1816,7 +1963,7 @@ runAsUser: 0
     Tokens:              dashboard-sa-token-dmn6x
     Events:              <none>
 
-- token is a secret. check it
+# token is a secret. check it
   controlplane $ kubectl describe secret default-token-qscb8
     Name:         default-token-qscb8
     Namespace:    default
@@ -1833,7 +1980,7 @@ runAsUser: 0
     token:      eyJhbGciOiJSUzI1NiIsImtpZCI6InNJbEZ3aU9VdVhFSFVSODV1SFd6YXV3TmZjbm5uMENrX0lmZTg4bEpLTDQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImRlZmF1bHQtdG9rZW4tcXNjYjgiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC5uYW1lIjoiZGVmYXVsdCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjgxYzQ0YTBhLWQ5M2YtNGIzMy1iZmFiLTQ1MDQ1YjlhMDE1MCIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDpkZWZhdWx0OmRlZmF1bHQifQ.KDSFzXwtVl5MziDIVKZw5Ye2gHNz-1emzgkli5CIal2IFA0EtUzZqxpd5DBGsw97UVQLK8dvqRxu-ZxWxkZZe5aQsVjMvU97-JMH35jrCGqr7l9EW2WY4LeN95loQtukahdkGGvKM71QbmIR_9-PY0Di3lnoy-GAn1h82QCdBtkX0F91h7M0oiovFrgPXVOik3xKTQHZ5_NZx6og7hJ0tdGo1tqBPwMo5dS0jht-VUf2UoIs51Jd-_thb5VpkNl24nSUSvihtYVAEkialnIefSAnv4Og-iuUeMA1QUigYZtTgFMxohj_IxgyoY9VlTG0N2o2MBStoKePqj3kbb6qYA
     controlplane $
 	
-    This token(eyJ...YA) is used for the communication. If we check the secret we get base64 encoding values of this token as follow(ZXlKa....DBnakE=) we can't use that token
+    #This token(eyJ...YA) is used for the communication. If we check the secret we get base64 encoding values of this token as follow(ZXlKa....DBnakE=) we can't use that token
    
    controlplane $ kubectl get secret dashboard-sa-token-dmn6x -o yaml
     apiVersion: v1
@@ -1849,8 +1996,10 @@ runAsUser: 0
 	
     eyJhbGciOiJSUzI1NiIsImtpZCI6InNJbEZ3aU9VdVhFSFVSODV1SFd6YXV3TmZjbm5uMENrX0lmZTg4bEpLTDQifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImRhc2hib2FyZC1zYS10b2tlbi1kbW42eCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50Lm5hbWUiOiJkYXNoYm9hcmQtc2EiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiI2MzM0ZTc1Ni01ZTVjLTQ4YmMtOTFkMi1kY2UyOTMyMTk5NjkiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6ZGVmYXVsdDpkYXNoYm9hcmQtc2EifQ.gc4jy3l5QEkXQVnATxeESLvRUsvJ8fyIBqc0Yh8tQ0I8PDMZFS5nury_37yCQXXcxunP4j0FqDK_htPCIMI_CfQ78ojoaHQLFZOPR-BgJGZ16WSEDR25PwrI6kqUutXBBYL46IdCvglAtQWmCfu8fp8jPCl3wjy4GVbMGJ7zx5-47_rCMQT95J0FYsYQ-EsdDbIQmSrDTMNZHt6gq00qcsK-fj2bMJZYr9EkrDHH0EtNHr54P7FiYVw45uEEcr1O4ZQnK_ou6BWeYHOPW25-8XTYwEIP52qOSPt1aF_fTeaMvXahJO6WUuR9bXEKr8yswbdR0P54DdQ78Ne5dh0gjA
 	[root@sowlx082 ~]#
+
+#
 	
-	
+#configure in pod	
 - service account should be specified in pod definition. 
   apiVersion: apps/v1
   kind: Deployment
@@ -1863,20 +2012,23 @@ runAsUser: 0
 	 spec:
 	   containers: 
 	     - image:
-	   serviceAccount: dashboard-sa
+	   serviceAccountName: dashboard-sa
+	   automountServiceAccountToken: true | false
 .......
 
-#how to specify resource request and limit
+kubectl run nginx --image=nginx --restart=Never --serviceaccount=myuser 
+
+------------------------------------------------------------------resource-request-limit----------------------------------------------------------------------
+#notes: 
+  - By default k8s understands a Pod/Container requires 0.5 CPU and 256Mi memory. This can be changed using LimitRange
+  - Minimum CPU can be 1M (mili). 100m = 0.1 CPU. 1 is 1 core of CPU
+  - A container can't use more CPU than limit but it can use more memory than limit(in that case K8s will terminate the Pod and re-create)
 
 Pod specification 
 ......
 spec:
   containers:
-  - args:
-    - sleep
-    - "1000"
-    image: ubuntu
-    imagePullPolicy: Always
+  - image: ubuntu
     name: cpu-stress
     resources:
       limits:
@@ -1889,12 +2041,28 @@ spec:
 M = megabyte = 1000 KB
 Mi = Mebibyte = 1024 Ki(kibibyte)
 
-#Taints & Tollerations
-1: Taint is for nodes and tolleration is for Pod
+#limitRange(default limit) specification
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: mem-limit-range
+spec:
+  limits:
+  - default:
+      memory: 512Mi
+	  cpu: 1
+    defaultRequest:
+      memory: 256Mi
+	  cpu: 0.5
+    type: Container
 
-#Do any taints exist on node01 node?
-root@controlplane:~# kubectl describe node node01 | grep taint 
-root@controlplane:~#
+------------------------------------------------------------------Taints-Tolerations----------------------------------------------------------------------
+#Taints & Tollerations
+1: It is used to schedule which Pod should be placed on which Node (Restriction)
+2: Taint is for nodes and tolleration is for Pod. 
+3: If a Node has any Taint then a Pod should have similar Tolerations to be placed on that Node.
+4: Taint's doesn't restrict a Pod to be schduled on a Node, rather it ensures Nodes to accept certain Pod. It is a controller for Node. Node affinity is a controller for Pod
+
 
 #Create a taint on node01 with key of spray, value of mortein and effect of NoSchedule
 root@controlplane:~# kubectl taint node node01 spray=mortein:NoSchedule    
@@ -1903,16 +2071,16 @@ root@controlplane:~# kubectl taint nodes node01 spray=mortein:NoSchedule
 node/node01 tainted
 root@controlplane:~#
 
-#check taint in the node
+NoSchedule: Pod's won't be scheduled on the node which doesn't have similar toleration to the taint
+PreferNoSchedule: Pod's prefer not to be scheduled on the node which doesn't have similar toleration to the taint
+NoExecute: Any pods that do not tolerate the taint will be evicted immediately
+
+
+#Check taint in the node
 
 root@controlplane:~# kubectl describe node node01 | grep Taint 
 Taints:             spray=mortein:NoSchedule
 root@controlplane:~#
-
-#Do you see any taints on controlplane node?
-root@controlplane:~# kubectl describe node controlplane| grep Taint
-Taints:             node-role.kubernetes.io/master:NoSchedule
-root@controlplane:~# 
 
 #create tolerations in the pod
 apiVersion: v1
@@ -1924,16 +2092,14 @@ spec:
    - name: bee-container
      image: nginx
   tolerations: 
-   - key: "spray"
-     operator: "Equal"
-     value: "mortein"
-	 effect: "NoSchedule"
+  - key: "spray"
+    operator: "Equal"
+    value: "mortein"
+	effect: "NoSchedule"
 	 
-note: quations are not necessary
+note: quotations are not necessary
 	 
 #Check toleration in the Pod 
-root@controlplane:~# kubectl describe pod bee
-......
 root@controlplane:~# kubectl describe pod bee
 Name:         bee
 .......
@@ -1963,16 +2129,30 @@ Events:
    node/controlplane untainted
    root@controlplane:~# 
    
-3) root@controlplane:~# kubectl describe node controlplane| grep Taint
+3) root@controlplane:~# kubectl describe node controlplane| grep -i Taint
    Taints:             <none>
    root@controlplane:~#
-   
-#node selectors
-1) label  the node as reqired  
+------------------------------------------------------------------node-selectors----------------------------------------------------------------------   
+1: use to ensure that Pods are hosted in particular nodes
+
+#) label  the node as reqired  
     root# kubectl label nodes <node-name> <label-key>=<label-value> 
 	root# kubectl label nodes node01 size=Large 
+	
+#Check Labels (and values) exist on node node01?
+  root@controlplane:~# kubectl get nodes node01 --show-labels
+  or  
+  root@controlplane:~# kubectl describe node node01
+     Name:               node01
+     Roles:              <none>
+     Labels:             beta.kubernetes.io/arch=amd64
+                         beta.kubernetes.io/os=linux
+                         kubernetes.io/arch=amd64
+                         kubernetes.io/hostname=node01
+                         kubernetes.io/os=linux
+     Annotations:        flannel.alpha.coreos.com/backend-data: {"VNI":1,"VtepMAC":"46:fb:b5:32:db:36"}
 
-2) Use the label in Pod definition file to be scheduled in the required node
+#) Use the label in Pod definition file to be scheduled in the required node
      apiVersion: v1
      kind: Pod
      metadata:
@@ -1983,13 +2163,18 @@ Events:
 	     image: data-processor
        nodeSelector:
 	     size: Large
-		 
+
 #limitations
 can't request something like
 - Large or medium
 - not small  (i.e. place the pod on any node which is not small)
-
 # Solution: Node Affinity
+------------------------------------------------------------------node-Affinity----------------------------------------------------------------------  		 
+1: use to ensure that Pods are hosted in particular nodes
+
+#label the node as above   
+
+#Define Pod with NodeAffinity
     apiVersion: v1
      kind: Pod
      metadata:
@@ -2000,7 +2185,7 @@ can't request something like
 	     image: data-processor
        affinity: 
 	     nodeAffinity: 
-		  requiredDuringSchedulingIgnoreDuringExecution: 
+		  requiredDuringSchedulingIgnoredDuringExecution: 
 		    nodeSelectorTerms: 
 		    - matchExpresssions:
 			  - key: size
@@ -2024,23 +2209,33 @@ can't request something like
 	...............................
 	
 	Node Affinity types
-	 - requiredDuringSchedulingIgnoreDuringExecution
-	 - preferredDuringSchedulingIgnoreDuringExecution
-	 
-#Check Labels (and values) exist on node node01?
-  root@controlplane:~# kubectl get nodes node01 --show-labels
-  or  
-  root@controlplane:~# kubectl describe node node01
-     Name:               node01
-     Roles:              <none>
-     Labels:             beta.kubernetes.io/arch=amd64
-                         beta.kubernetes.io/os=linux
-                         kubernetes.io/arch=amd64
-                         kubernetes.io/hostname=node01
-                         kubernetes.io/os=linux
-     Annotations:        flannel.alpha.coreos.com/backend-data: {"VNI":1,"VtepMAC":"46:fb:b5:32:db:36"}
- 
-#Multi container pods
+	 - requiredDuringSchedulingIgnoredDuringExecution : If a matching node not found, Pod won't be scheduled
+	 - preferredDuringSchedulingIgnoredDuringExecution: If a matching node not found, Pod will be  scheduled
+
+Taints will gurrenty a Node won't accept a Pod if the Pod is not tolerant to the Taint. Node affinity will gurrenty a Pod to place in a similar leveled Node.
+Requirement:                                                                                   Solution:
+1) Place Blue pod in Node01. Other Pods can be placed in Node01	                              1) Use Node Affinity to use key=blue in pod and same label in Node01
+2) Place only Blue pod in Node01(Other Pods can't be placed in Node01)                        1) Use Node Affinity to use key=blue in pod and same label in Node01
+                                                                                              2) Use Taint color=blue on Node01 and tolleration to blue Pod
+
+--------------------------------------------------------Multi-container-pods--------------------------------------------------------------------------------   
+1: Multi container pods share the same life cycle(created together, destroyed together), share same network space (can refer each other by localhost),
+   access to same shared volumes
+2: Pattern
+      Sidecar pattern: An extra container in your pod to enhance or extend the functionality of the main container.
+	                   container + container(share same resource and do other functions)
+	                   ex: send logs to some external system. Without changing the business logic (the main container), you can deploy a logging-agent as a sidecar container.
+					   
+	  Adapter pattern: A container that transform output of the main container.
+	                   container + adapter(for checking other container's status. e.g. monitoring)
+	                   ex: convert log to some common format before sending to central log server 
+					   
+      Ambassador pattern: A container that proxy the network connection to the main container.
+	                      container + proxy(to networking outside)
+	                      ex: you deploy ambassador container which has credentials to Kubernetes API, so you don't have to use authentication from your client.
+
+further read: https://medium.com/swlh/pattern-sidecars-ambassadors-and-adapters-containers-ec8f4140c495
+
  #Sidecar
   apiVersion: apps/v1
   kind: Deployment
@@ -2056,14 +2251,17 @@ can't request something like
 		   name: simple-webapp
 		 - image: log-agent
 		   name: log-agent
-	   
+		   
+--------------------------------------------------------Readiness/Liveness-probe--------------------------------------------------------------------------------	   
  #Pod lifecycle
+ 
+#Status (where the pod is in its lifecycle)
 1. Pending: Scheduler finds where to put the Pod
 2. ContainerCreating: Pod scheduled in some node. Pulls image and starting container.
 3. Running: All the containers in a Pod is created
-4. 
+4. Terminated: 
 
-#Pod Conditions
+#Conditions
 1. PodScheduled: 
 2. Initialized: 
 3. Containers Ready:
@@ -2083,24 +2281,24 @@ can't request something like
           name: simple-webapp
           ports:
           - containerPort: 8080
-          readinesssProbe:
+          readinessProbe:
             httpGet: 
                path: /api/ready
                port: 8080
 
 2) or for DB service(tcp)
 
-      readinesssProbe:
+      readinessProbe:
              tcpSocket: 
                 port: 3306
       
 3) or for exec
 
-      readinesssProbe:
+      readinessProbe:
              exec: 
-      	     command: 
-               - cat
-               - /app/is_ready
+      	       command: 
+                 - cat
+                 - /app/is_ready
 			   
 4) initial delay and probe period.      		 
 
@@ -2140,7 +2338,30 @@ simple-webapp-2   0/1     Running   0          90s
 
 note: Even if livenessProbe is enabled, K8s takes some time to detects whether the Pod is really liuve or not and restarts based on it. In that time service will be down.
 
-#Monitoring using metric server
+------------------------------------------------------------Logs----------------------------------------------------------------------------
+- For pod: kubectl logs <pod-name>.
+          kubectl logs -f <pod-name>   (-f helps to see live log trail)
+- For multipod container: 
+    $kubectl logs webapp-2 -c    shows number of containers)
+	$ db   simple-webapp
+	    
+    $kubectl logs -f <pod-name> -c <container-name>
+	$kubectl logs webapp-2 -c simple-webapp
+	or
+	$kubectl logs webapp-2  simple-webapp
+	
+- for previous instance
+  kubectl logs nginx -p
+  or
+  kubectl logs nginx --previous	
+
+----------------------------------------------------------Monitoring-using-metric-server---------------------------------------------------------------------------
+1: Monitoring: Node level metrics(how many are healthy), CPU, memory, Disk Utilization, Network etc.
+               Pod level metrics: CPU, memory
+2: MetricServer: In memory monitoring solution (can't see historical data)
+
+3: K8S runs one agent kubelet in each nodes which receives instruction from master and performs the task. It has one sub component cAdvisor(container Advisor) which  collect metrics about pod and exposes it through kubelet api. Metric server collects it.
+
 A) Minikube
 1. Enable metrics server 
     C:\Users\echypal>minikube addons enable metrics-server
@@ -2190,7 +2411,7 @@ C) Monitoring
       elephant   44m          52Mi            
       lion       2m           7Mi             
       rabbit     152m         106Mi 
-
+--------------------------------------------------------------------------Pod-Design-------------------------------------------------------------------------------
 #select apps based on labels
 apiVersion:apps/v1
 kind:Deployment
@@ -2203,7 +2424,7 @@ metadata:
     buildVersion: 1.34
 spec:
   replicas: 3
-  selector:                           (connect ReplicaSet with Pod. sshould match the labels on the Pod)
+  selector:                           (connect ReplicaSet with Pod. should match the labels on the Pod)
     matchLabels:
       app: App1
   template:
@@ -2217,7 +2438,7 @@ spec:
          image: simple-webapp	   
       
 
-1) Use labels
+#) Use labels
    root@controlplane:~# kubectl get pods --show-labels
 
    root@controlplane:~# kubectl get pods -l env=dev --no-headers | wc -l
@@ -2225,7 +2446,7 @@ spec:
    or
    root@controlplane:~# kubectl get pods --selector env=dev --no-headers | wc -l
      7  
-2) Check labels in all objects
+#) Check labels in all objects
      root@controlplane:~# kubectl get all -l env=prod
       NAME              READY   STATUS    RESTARTS   AGE
       pod/app-1-zzxdf   1/1     Running   0          4m26s
@@ -2241,11 +2462,112 @@ spec:
       replicaset.apps/db-2    1         1         1       4m27s
       root@controlplane:~#	
 
-3) use more than one labels
+#) use more than one labels
     root@controlplane:~# kubectl get pods -l bu=finance,env=prod,tier=frontend 
        NAME          READY   STATUS    RESTARTS   AGE
        app-1-zzxdf   1/1     Running   0          15m
        root@controlplane:~# 
+	   
+------------------------------------------------------------------Rollout------------------------------------------------------
+#rolling update
+#Steps
+1) Create
+    kubectl create -f my-deployment-1.yaml
+  
+2) Get
+    kubectl get deployments
+  
+3) Update
+  a) kubectl apply -f my-deployment-2.yaml
+	
+  b) kubectl set image deployment/my-deployment-1 nginx=nginx:1.9.1
+	
+	- Update with change clause recording
+	   master $ kubectl set image deployment/nginx <container-name>=nginx:1.17 --record
+	            kubectl set image deployment/nginx nginx=nginx:1.17 --record
+                deployment.extensions/nginx image updated
+                master $master $
+                 
+       master $ kubectl rollout history deployment nginx
+                deployment.extensions/nginx
+ 
+                REVISION CHANGE-CAUSE
+                1     <none>
+                2     kubectl set image deployment nginx nginx=nginx:1.17 --record=true
+       master $
+	   
+  c) edit an image
+         master $ kubectl edit deployments. nginx --record
+                  deployment.extensions/nginx edited
+ 
+         master $ kubectl rollout history deployment nginx
+                  REVISION CHANGE-CAUSE
+                  1     <none>
+                  2     kubectl set image deployment nginx nginx=nginx:1.17 --record=true
+                  3     kubectl edit deployments. nginx --record=true
+4) Status
+    kubectl rollout status deployment/my-deployment-2
+  
+5) History
+
+    kubectl rollout history deployment/my-deployment-2
+	
+   - Check status of each revision
+      master $ kubectl rollout history deployment nginx --revision=1
+   
+	
+6) Rollback
+    kubectl rollout undo deployment/my-deployment-2
+	
+	
+7) Pause the rollout 
+
+    root@controlplane:~# k rollout pause deployment nginx
+    deployment.apps/nginx paused
+
+8) Update the image and check that there's nothing going on, since we paused the rollout. 
+
+   root@controlplane:~# k set image deploy nginx nginx=nginx:1.19.9
+   deployment.apps/nginx image updated
+   root@controlplane:~#
+
+   root@controlplane:~# k rollout status deploy nginx
+   Waiting for deployment "nginx" rollout to finish: 0 out of 5 new replicas have been updated...
+
+10) Resume the rollout and check that the mage has been applied
+
+    root@controlplane:~# k rollout resume deploy nginx
+    deployment.apps/nginx resumed
+    root@controlplane:~# 
+    
+    root@controlplane:~# k rollout status deploy nginx
+    Waiting for deployment "nginx" rollout to finish: 3 out of 5 new replicas have been updated...
+	
+
+root@controlplane:~# kubectl explain deployment --recursive | grep strategy  -A8
+      strategy  <Object>
+         rollingUpdate  <Object>
+            maxSurge    <string>
+            maxUnavailable      <string>
+         type   <string>
+      template  <Object>
+         metadata       <Object>
+            annotations <map[string]string>
+            clusterName <string>
+root@controlplane:~# 
+
+
+#Deployment Strategy
+1) Recreate
+2) RollingUpdate (default)
+
+note:  By default, the maximum number of Pods that can be unavailable during the update and the maximum number of new Pods that can be created, is one.Both options can be configured to either numbers or percentages (of Pods)
+
+-----------------------------------------------------------------------Job-CronJob-------------------------------------------
+
+#ReplicaSet & Job : 
+- Replica set ensures that number of pod run always. 
+- Job ensures that number pod should work and finish the job. Underlying both has Pod. The difference is mainly in Restart Policy. Similar like Replica Set, deleting the Job will delete the underlying Pod.
 
 #restartPolicy
 apiVersion: v1
@@ -2257,7 +2579,7 @@ spec:                                   ---------------|
   - name: math-add                                     |
     image: ubuntu                                      |
 	command: ['expr', '3', '+', '2']                   |
-    restartPolicy: Always | Never | OnFailure          |
+  restartPolicy: Always | Never | OnFailure            |
 													   |
 #Job
 apiVersion: batch/v1
@@ -2275,7 +2597,7 @@ spec:
       - name: math-add                                 | Pod Definition
         image: ubuntu                                  |
 	    command: ['expr', '3', '+', '2']               |
-        restartPolicy: Always | Never | OnFailure      |
+      restartPolicy: Always | Never | OnFailure        |
       
  - output can be seen in the log of the Pod
    kubectl logs <pod-name>
@@ -2290,6 +2612,7 @@ spec:                       (spec for cron)
   jobTemplate: 
             ------------------------------------------------||
 	 spec:                  (spec for job)                  ||
+	    backoffLimit: 4                                     ||
         completions: 3                                      ||
         parallelism: 3                                      ||
         template:                                           ||
@@ -2301,13 +2624,16 @@ spec:                       (spec for cron)
               restartPolicy: Always | Never | OnFailure     ||
             
  
-root@controlplane:~# kubectl create cronjob  throw-dice-cron-job  --image=kodekloud/throw-dice --schedule="30 21 * * *" --dry-run=client -o yaml > cron.yaml
-
+root@controlplane:~# kubectl create job NAME --image=image [--from=cronjob/name] -- [COMMAND] [args...]
+                     kubectl create job my-job --image=busybox -- date     
+					 
+root@controlplane:~# kubectl create cronjob  throw-dice-cron-job  --image=kodekloud/throw-dice --schedule="30 21 * * *" -- date  
+----------------------------------------------------------------Service-Ingress------------------------------------------------------------------------------------------
 #Services
 1) NodePort: Listen to a port on the Node and Forward request to a Pod. This service make internal Pod accessible on a port on the Node
        - Port of the Pod. TargetPort
 	   - Port where service is running: 
-	   - Port of the Node which is open for external world. NodePort (Range: 30000-30267)
+	   - Port of the Node which is open for external world. NodePort (Range: 30000-32767)
 	   
 2) ClusterIp: Creates a virtual IP inside the cluster to enable communication between different services like a set of frontend servers & set of backend servers.
 3) LoadBalancer: Distribute load accross web server
@@ -2328,7 +2654,7 @@ spec:
    ports:
    - protocol: 
      targetPort: 80    (port of the Pod)
-     port:     80      (mandatory> Port of the Service)
+     port:     80      (mandatory Port of the Service)
 	 nodePort: 30008   (exposed port for NodePort Service)
 
 
@@ -2584,8 +2910,292 @@ setup: https://github.com/akash007ganga/kubernetes/blob/main/materials/tutorial-
 			  
 "ingress-resource.yaml" 28L, 546C 
 	
+#Network Policy
+doc: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+Protect db pod to only allow trafic from api-pod in port 3306 (Allow ingress trafic from api-pod on port 3306 in db-pod)
+
+Always look from db-pod perspective
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+   name: db-policy
+spec:
+   podSelector:          || 
+     matchLabels:        || First select where to apply the network policy (in our case db pod)
+	   role: db          ||
+	   
+   policyTypes:    ------||--------------- 
+   - Ingress             || whether to allow ingress traffic or egress traffic or both (Always look from db-pod perspective). Once incoming trafic is allowed,
+   - Egress              || the reply of the traffic(query result) is automatically allowed. But db pod can't connect to api-pod because that request originate 
+                         || from db-pod so requires egress rule while we are creating ingress rule.
+						 
+   ingress:                ||define the specification of policy.
+   - from:                 ||
+     - podSelector:        ||Other pods that are allowed(source). In our case it is api pod
+	     matchLabels:      ||
+		   name: api-pod   ||
+		   
+	 - nameSpaceSelector:  ||
+	     matchLabels:      ||Namespaces that are allowed. In our case only from the namespace whose label is (name=prod)
+		   name: prod      ||
+       
+	 - ipBlock:                       ||only allow trafic from mentioned ip address
+           cidr: 192.168.5.10/32 	  ||
+	   
+     ports:
+	 - protocol: TCP       ||
+	   port: 3306          ||in which port of the db pod ingress trafic is allowed from
+	   
+   egress:
+   - to:
+     - ipBlock:             || here we can specify any of the podSelector, nameSpaceSelector, ipBlock
+         cidr: 10.0.0.0/24  ||
+     ports:
+     - protocol: TCP        || 
+       port: 80
+	   
+Note: Inside from tag of ingress, rules works like Or. In above example trafic is allowed from (api-pod) or (from everything of the namespace whose label is name=prod) or (from ip address 192.168.5.10/32)
+.....
+ ingress: 
+ - from:
+   - podSelector:
+       matchLabels:           ||
+	     name: api-pod        ||look dash before nameSpaceSelector is not given
+	 nameSpaceSelector:       ||here trafic is allowed from (api-pod and namespace whose label is name=prod)
+	   matchLabels:           ||
+	     name: prod           ||
+ 
+root@controlplane:~# kubectl get netpol
+                     NAME             POD-SELECTOR   AGE
+                     payroll-policy   name=payroll   59s
+root@controlplane:~# 
+
+
+root@controlplane:~# kubectl describe netpol payroll-policy 
+                     Name:         payroll-policy
+                     Namespace:    default
+                     Created on:   2021-08-05 04:01:48 +0000 UTC
+                     Labels:       <none>
+                     Annotations:  <none>
+                     Spec:
+                       PodSelector:     name=payroll
+                       Allowing ingress traffic:
+                         To Port: 8080/TCP
+                         From:
+                           PodSelector: name=internal
+                       Not affecting egress traffic
+                       Policy Types: Ingress
+root@controlplane:~#   
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+#Volumes
+steps
+1. Create one volume and define storage-provisioner
+2. During container creation first mount the volume of #1 in some local directory of container
+3. use the volume mount of #2 in container
+4. remember #2 and #3 for each container
+
+apiVersion: v1
+kind: Pod
+metadata: 
+   name: random-number-generator
+spec: 
+  containers:                                                 ||
+  - name: alpine                                              ||
+    image: alpine                                             || random number generator from 1 to 100
+	command: ["/bin/sh", "-c"]                                ||
+	args: ["shuf -i 0-100 -n 1 >> /opt/number.out"]           ||
+	volumeMounts:                      ||
+	- mountPath: /opt                  ||2. Mounted the volume inside container in /opt directory and use it for container
+	  name: data-volume                ||
+  
+  volumes: 
+  - name: data-volume                 ||
+    hostPath:                         || 1. Created the volume (inside pod definition file)
+	  path: /data                     ||
+	  type: Directory                 ||
+	  
+#PersistentVolumes
+Purpose: To create large volume(storage) centrally by administrators so that Pod's will use chunk using PersistentVolumeClaim
+
+apiVersion: v1
+kind: PersistentVolume
+metadata: 
+  name: pv-vol1
+spec:
+  accessModes:
+  - ReadOnlyMany | ReadWriteOnce | ReadWriteMany
+  capacity: 
+    storage: 1Gi
+  persistentVolumeReclaimPolicy: Retain | Delete | Recycle
+  hostPath:
+    path: /tmp/data  
+
+#PersistentVolumeClaim
+Purpose: used by user to use Persistent Volumes. One PVC can be bound with only one PV. One PV can have only one PVC. Matching between PVC and PV is done with access mode, storage etc.
+
+1) Create PVC
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: 
+  name: myclaim
+spec:
+ accessModes: 
+ - ReadOnlyMany | ReadWriteOnce | ReadWriteMany
+ resources:
+   requests:
+     storgae: 500Mi
+
+2) Using PVC in Pod
+
+apiVersion: v1
+kind: Pod
+metadata:
+   name: mypod
+spec:
+  containers:
+  - name: myfrontend                          ||
+    image: nginx                              ||
+	volumeMounts:                             ||2. Mounted the volume inside container in /opt directory and use it for container
+	- mountPath: /opt                         ||
+	- name: data-volume                       ||
 	
-   
+  volumes:                              ||
+  - name: data-volume                   ||
+    -persistentVolumeClaim:              ||1. create the volume using PVC
+        claimName: myclaim              ||
+
+# Storage CLASS (Not in Exam)
+Purpose: Automatice creation of the PV
+
+1) Create storage class
+
+apiVersion:storage.k8s.io/v1
+kind: StorageClass
+metadata: 
+  name: google-storage
+provisioner: kubernetes.io/gce-pd
+  
+2) Link it to PVC
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: 
+  name: myclaim
+spec:
+ accessModes: 
+ - ReadOnlyMany | ReadWriteOnce | ReadWriteMany
+ storageClassName: google-storage                     |||||   storage class linked
+ resources:
+   requests:
+     storgae: 500Mi
+
+3) When this PVC is attached with some Pod, underlying PV is automatically created
+
+root@controlplane:~# kubectl get sc
+No resources found
+root@controlplane:~# 
+
+#StatefulSet
+Why statefulsets instead of Deployments
+1: Deployments order of Pod is not gurrented. For Databases, master should come up first then slave-1, slave-2 etc.
+2: Pods in Deployment doesn't bear static IP address. For databases, Master node must have static host name which is referred by slaves.
+
+
+features:
+1: Pods are created in sequential order. After the first pod is in running and ready state, next pod is deployed
+2: Name of the StatefulSet is prepared using an unique ordeal index starting from 0. Like mysql-0, mysql-1 etc. Stcky identity for pods. If sccaled up, next Pod   will have name as mysql-2 and it will clone data from mysql-1. 
+3: Each pod gets one stable DNS record in network which anyone can use
+
+
+#Headless Service
+1: Doesn't load balance request. Gives a DNS entry to reach a Pod. It doesn't have an IP of its own.
+
+dns entry structure of headless service: <pod name>.<headless service name>.<namespace>.<svc>.<cluster domain>
+i.e.  mysql-0.mysql-h.default.svc.cluster.local (always point to master pod)
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-h
+spec:
+  selector:
+    app: mysql
+  ports:
+    - protocol: TCP
+      port: 3306      
+  clusterIP: None    || difference from normal service
+  
+																	||
+Pod definition                                                      ||
+																	||
+apiVersion: v1                                                      ||
+kind: Pod                                                           ||
+metadata:                                                           ||
+   name: mysql                                                      ||
+   labels:                                                          ||
+     app: mysql                                                     ||
+spec: 
+  replicas: 3                                                       ||
+  containers:                                                       ||
+   - name: mysql                                                    ||
+     image: mysql                                                   ||
+  subdomain: mysql-h    ||headless service                          ||
+  hostname: mysql-pod   ||headless service                          ||
+																	||
+DNS will be : mysql-pod.mysql-h.default.svc.cluster.local           ||
+		      mysql-pod.mysql-h.default.svc.cluster.local
+              mysql-pod.mysql-h.default.svc.cluster.local			||
+(all pod will have same dns entry if we use Pod or deployments)
+
+---------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: web
+spec:
+  selector:
+    matchLabels:
+      app: mysql 
+  serviceName: mysql-h                                                || headless service name
+  podManagementPolicy: OrderedReady | Parallel                      || [OrderedReady: Pod will come up one after other.] [Parallel: Pod can came up in any oder]
+  replicas: 3 # by default is 1
+  template:                                                         || 
+    metadata:  
+      name: mysql	                                                || 
+      labels:                                                       || 
+        app: mysql                                                  || 
+    spec:                                                           || 
+      terminationGracePeriodSeconds: 10                             || Pod Definition
+      containers:                                                   || 
+      - name: mysql                                                 || 
+        image: mysql                                                || 
+        ports:                                                      || 
+        - containerPort: 3306                                       || 
+          name: web                                                 || 
+		volumeMounts:
+        - name: data-volume
+          mountPath: /usr/share/nginx/html
+  volumeClaimTemplates:                                             ||
+  - metadata:                                                       ||
+      name: data-volume                                             ||
+    spec:                                                           ||PVC definition
+      accessModes: 
+	  - ReadWriteOnce                                               ||
+      storageClassName: google-storage                              ||
+      resources:                                                    ||
+        requests:                                                   ||
+          storage: 1Gi                                              ||
+        
+here no need to define subdomain or host name. 
+
+now when StatefulSets are created, it creates the first Pod. During creation of the pod it creates PVC using template, it uses the storage class which ccreates a volume(actual space) in google cloud, creates a PV (k8s object) and associates the PV with that volume. For second podd new volume is created and so on
+
+if the pod is deleted and recreated, StatefulSet doesn't delete the PV/PVC instead it ensures new Pod is reattached in the same PVC/PV.
+ 
 #aliases
 export ns=default
 alias k='kubectl -n $ns' # This helps when namespace in question doesn't have a friendly name 
@@ -2593,7 +3203,120 @@ alias kdr= 'kubectl -n $ns -o yaml --dry-run'.  # run commands in dry run mode a
 
 or
 
-
-
 alias k=kubectl
 
+https://www.youtube.com/watch?v=knyJt8d6C_8
+
+
+#short form
+po: Pod
+rs: replicaset
+deploy: deployment
+ns: namespaces
+svc:service
+cm: configmap
+secret: ??
+sa: serviceacccount
+no: node
+cj: cron job
+netpol: network Policies
+pv: Persistent Volume
+pvc: Persistent Volume Claim
+sc: Storage Class
+sts: statefulSets
+--all-namespaces = -A
+
+#revisit
+expose svc/create svc
+not good documentation:
+PV, Pvc, RollingUpdate: max unaviable etc.
+
+
+
+
+#other things
+
+#remove a node from service 
+kubectl drain <node name>
+#tell Kubernetes that it can resume scheduling new pods onto the node
+kubectl uncordon <node name>
+#see logs in docker container
+controlplane $ docker container logs da314c9bbb04
+#kube api file configuration
+controlplane $ cd /etc/kubernetes/manifests/
+controlplane $ ls
+etcd.yaml  kube-apiserver.yaml  kube-controller-manager.yaml  kube-scheduler.yaml
+controlplane $ vi kube-apiserver.yaml
+
+#context 
+
+Suppose you have two clusters, one for development work and one for scratch work. In the development cluster, your frontend developers work in a namespace called frontend, and your storage developers work in a namespace called storage. In your scratch cluster, developers work in the default namespace, or they create auxiliary namespaces as they see fit. 
+
+1: create cluster 
+
+kubectl config set-cluster development --server=https://1.2.3.4 --certificate-authority=fake-ca-file
+
+kubectl config set-cluster scratch --server=https://5.6.7.8 --insecure-skip-tls-verify
+
+2: create context(cluster, user, namespace) for cluster
+
+kubectl config set-context dev-frontend --cluster=development --namespace=frontend --user=developer
+
+Each context is a triple (cluster, user, namespace). For example, the dev-frontend context says, "Use the credentials of the developer user to access the frontend namespace of the development cluster".
+
+3: set current context to dev-frontend
+
+kubectl config use-context dev-frontend
+
+Now whenever you enter a kubectl command, the action will apply to the cluster, and namespace listed in the dev-frontend context. And the command will use the credentials of the user listed in the dev-frontend context.
+
+4: view
+kubectl config view
+
+5: use nginx:alpine and curl to check if one Pod is accessible on port 80:
+
+# Temporary pod
+
+1: Using nginx
+    k run tmp --image=nginx:alpine --restart=Never --rm -it  -- curl -m 5 10.12.2.15     [using nginx, it has curl]
+   
+      -m: Maximum time in seconds that you allow the whole operation to take
+    --rm: ensures the Pod is deleted when the shell exits
+2: Using busybox
+
+    kubectl run busybox --image=busybox --rm -it --restart=Never -- wget -O- 10.1.1.131:80  --timeout 2 [using busybox, it has wget]
+
+    1: wget with no flag 
+       wget www.stackoverflow.com : Output[content of stackoverflow.com will be downloaded into a file named as index.html]
+    2: wget with -O flag
+       wget -O filename.html www.stackoverflow.com [content of stackoverflow.com will be downloaded into a file named as filename.html]
+    3: wget with -O- flag
+      wget -O- www.stackoverflow.com [content of stackoverflow.com will be downloaded into stdout]
+	  
+	  Tip: --timeout is optional, but it helps to get answer more quickly when connection fails (in seconds vs minutes)
+ 
+3: For Service
+
+    k run tmp --restart=Never --rm -i --image=nginx:alpine -- curl -m 5 sun-srv.sun:9999 
+       sun is namespace 
+    svc name sun-srv.sun or fully: sun-srv.sun.svc.cluster.local
+    
+
+#imperative command for service
+
+1: Nodeport
+root@controlplane:~# `kubectl expose pod nginx --name nginx-service --port=80  --type=NodePort --dry-run=client -o yaml`
+
+ - This will automatically use the pod's labels as selectors, 
+ - generate a definition file and manually input the nodeport before creating the service.
+   spec: 
+     type: NodePort
+     selector:
+        app: MyApp
+     ports:
+     - port: 80
+       targetPort: 80                              ||||By default `targetPort` is set to the same value as the `port` field.
+       nodePort: 30007    (default: 30000-32767)   |||| only this needs to be added.
+
+2: ClusterIP
+root@controlplane:~# `kubectl expose pod httpd --name=httpd         --port=80                  --dry-run=client -o yaml> httpd-service.yaml`
