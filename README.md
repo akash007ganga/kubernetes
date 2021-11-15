@@ -1964,8 +1964,8 @@ note: for root, runAsUser: 0
     Events:              <none>
 
 # token is a secret. check it
-  controlplane $ kubectl describe secret default-token-qscb8
-    Name:         default-token-qscb8
+  controlplane $ kubectl describe secret dashboard-sa-token-dmn6x
+    Name:         dashboard-sa-token-dmn6x
     Namespace:    default
     Labels:       <none>
     Annotations:  kubernetes.io/service-account.name: default
@@ -2927,9 +2927,9 @@ spec:
 	   role: db          ||
 	   
    policyTypes:    ------||--------------- 
-   - Ingress             || whether to allow ingress traffic or egress traffic or both (Always look from db-pod perspective). Once incoming trafic is allowed,
-   - Egress              || the reply of the traffic(query result) is automatically allowed. But db pod can't connect to api-pod because that request originate 
-                         || from db-pod so requires egress rule while we are creating ingress rule.
+   - Ingress   || whether to allow ingress traffic or egress traffic or both (Always look from db-pod perspective). Once incoming trafic is allowed,
+   - Egress    || the reply of the traffic(query result) is automatically allowed. db pod can't connect to api-pod because that request originate 
+               || from db-pod so requires egress rule while we are creating ingress rule.
 						 
    ingress:                ||define the specification of policy.
    - from:                 ||
@@ -3320,3 +3320,8 @@ root@controlplane:~# `kubectl expose pod nginx --name nginx-service --port=80  -
 
 2: ClusterIP
 root@controlplane:~# `kubectl expose pod httpd --name=httpd         --port=80                  --dry-run=client -o yaml> httpd-service.yaml`
+
+#Build docker image
+Dockerfile
+
+docker build Dockerfile -t 
